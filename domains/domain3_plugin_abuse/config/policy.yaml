@@ -1,0 +1,32 @@
+# domains/domain3_plugin_abuse/config/policy.yaml
+# Thresholds and settings for Domain 3: Plugin / Tool Abuse Monitoring
+# Each control reads ITS OWN section below via core.policy_loader
+
+tool_whitelist:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+command_tracking:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+sensitive_tool_gate:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+tool_anomaly:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+usage_correlation:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+rate_limiter:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+session_terminator:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+

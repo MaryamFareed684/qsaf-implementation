@@ -1,0 +1,32 @@
+# domains/domain2_role_context/config/policy.yaml
+# Thresholds and settings for Domain 2: Role & Context Manipulation
+# Each control reads ITS OWN section below via core.policy_loader
+
+role_lock:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+impersonation_detector:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+context_drift:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+session_pivot:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+nested_injection:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+role_assertion_log:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+context_integrity:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+

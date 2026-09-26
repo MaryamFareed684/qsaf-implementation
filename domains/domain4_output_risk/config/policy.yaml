@@ -1,0 +1,32 @@
+# domains/domain4_output_risk/config/policy.yaml
+# Thresholds and settings for Domain 4: Output Risk & Response Control
+# Each control reads ITS OWN section below via core.policy_loader
+
+jailbreak_output_filter:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+hallucination_flag:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+output_watermark:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+sensitivity_scoring:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+risky_reroute:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+prompt_response_correlation:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+tone_deviation:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+

@@ -1,0 +1,11 @@
+# Global QSAF policy — cross-domain settings
+enabled_domains:
+  - domain1_prompt_injection
+  - domain2_role_context
+  - domain3_plugin_abuse
+  - domain4_output_risk
+
+# Overall thresholds used by the risk engine / dashboard, not by individual
+# controls (those load their OWN thresholds from their own policy.yaml)
+overall_block_threshold: 0.85
+overall_escalate_threshold: 0.6

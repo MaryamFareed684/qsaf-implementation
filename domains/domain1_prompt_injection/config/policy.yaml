@@ -1,0 +1,36 @@
+# domains/domain1_prompt_injection/config/policy.yaml
+# Thresholds and settings for Domain 1: Prompt Injection Protection
+# Each control reads ITS OWN section below via core.policy_loader
+
+blacklist:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+dynamic_analysis:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+embedding_similarity:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+risk_scoring:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+multi_phase_validator:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+escalation_router:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+token_anomaly:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
+token_sanitizer:
+  enabled: true
+  threshold: 0.5  # TODO: tune this
+
