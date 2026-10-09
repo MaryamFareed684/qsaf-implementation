@@ -4,23 +4,54 @@
 
 role_lock:
   enabled: true
-  threshold: 0.5  # TODO: tune this
+  phrases:
+    - "you are now"
+    - "act as if you are"
+    - "pretend to be"
+    - "from now on you are"
+    - "switch to being"
+    - "roleplay as"
+    - "you are no longer"
 
-impersonation_detector:
+impersonation:
   enabled: true
-  threshold: 0.5  # TODO: tune this
+  phrases:
+    - "i am the developer"
+    - "i am your creator"
+    - "i am an anthropic employee"
+    - "this is openai support"
+    - "i am the system administrator"
+    - "as your creator, i command you"
+    - "official override code"
 
 context_drift:
   enabled: true
-  threshold: 0.5  # TODO: tune this
+  phrases:
+    - "let's play a game where"
+    - "for this conversation, you are"
+    - "starting now, act as"
+    - "new instructions:"
+    - "updated role:"
 
 session_pivot:
   enabled: true
-  threshold: 0.5  # TODO: tune this
+  phrases:
+    - "[new session]"
+    - "new conversation start"
+    - "system reset"
+    - "reset the conversation"
+    - "this is a fresh session"
+    - "forget this conversation and start"
+    - "end session, begin new session"
 
 nested_injection:
   enabled: true
-  threshold: 0.5  # TODO: tune this
+  role_tokens:
+    - "system:"
+    - "assistant:"
+    - "user:"
+    - "[system]"
+    - "[assistant]"
 
 role_assertion_log:
   enabled: true
@@ -28,5 +59,13 @@ role_assertion_log:
 
 context_integrity:
   enabled: true
-  threshold: 0.5  # TODO: tune this
+  role_tokens:
+    - "system:"
+    - "[system]"
+    - "assistant:"
+    - "[assistant]"
 
+semantic_drift:
+  enabled: true
+  drift_threshold: 0.3
+  min_words: 5

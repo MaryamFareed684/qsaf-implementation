@@ -23,7 +23,15 @@ class DynamicAnalysisPI002(Control):
 
     def __init__(self):
         super().__init__()
-        self.client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+        # The Groq client is created lazily inside evaluate(), NOT here.
+        # Creating it here made importing the whole Domain 1 package crash
+        # whenever GROQ_API_KEY was missing (CI, teammates' machines, tests).
+        self._client = None
+
+    def _get_client(self) -> Groq:
+        if self._client is None:
+            self._client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+        return self._client
 
     def evaluate(self, ctx: RequestContext) -> Verdict:
         policy = load_domain_policy("domain1_prompt_injection")
@@ -35,7 +43,7 @@ class DynamicAnalysisPI002(Control):
         user_message = f"<<<USER_PROMPT>>>\n{prompt_to_check}\n<<<END_USER_PROMPT>>>"
 
         try:
-            response = self.client.chat.completions.create(
+            response = self._get_client().chat.completions.create(
                 model="openai/gpt-oss-20b",
                 messages=[
                     {"role": "system", "content": ANALYZER_SYSTEM_PROMPT},
@@ -50,13 +58,14 @@ class DynamicAnalysisPI002(Control):
             explanation = result.get("explanation", "No explanation provided.")
 
         except Exception as exc:
-            # Fail-safe per control_base.py's own rule: never crash, return a warn
+            # Fail-safe per control_base.py's rule: never crash, return a warn
+            # (this also covers a missing or invalid GROQ_API_KEY).
             return Verdict(
                 control_id=self.control_id,
                 domain=self.domain,
                 status="warn",
                 risk_score=0.5,
-                reason=f"Analyzer error, defaulting to warn: {exc}",
+                reason=f"Analyzer unavailable, defaulting to warn: {exc}",
                 evidence={},
             )
 
