@@ -1,32 +1,154 @@
 # domains/domain3_plugin_abuse/config/policy.yaml
 # Thresholds and settings for Domain 3: Plugin / Tool Abuse Monitoring
-# Each control reads ITS OWN section below via core.policy_loader
+# Each control reads its own section below via core.policy_loader
 
 tool_whitelist:
   enabled: true
-  threshold: 0.5  # TODO: tune this
+  allowed_tools:
+    - "calculator"
+    - "web_search"
+    - "read_file"
+    - "weather"
+    - "send_email"
+    - "database_query"
+  tool_schemas:
+    calculator:
+      required_args: ["expression"]
+      arg_types:
+        expression: "str"
+    web_search:
+      required_args: ["query"]
+      arg_types:
+        query: "str"
+    read_file:
+      required_args: ["filepath"]
+      arg_types:
+        filepath: "str"
+    send_email:
+      required_args: ["to", "subject", "body"]
+      arg_types:
+        to: "str"
+        subject: "str"
+        body: "str"
+    database_query:
+      required_args: ["query"]
+      arg_types:
+        query: "str"
+  strict_schema: true
+  violation_risk_score: 0.9
 
 command_tracking:
   enabled: true
-  threshold: 0.5  # TODO: tune this
+  dangerous_patterns:
+    - "rm\\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r|--recursive|--force)"
+    - "DROP\\s+(TABLE|DATABASE|SCHEMA)"
+    - "curl\\s+.*\\|\\s*(ba)?sh"
+    - "wget\\s+.*\\|\\s*(ba)?sh"
+    - "\\.\\./\\.\\."
+    - "/etc/passwd"
+    - "/etc/shadow"
+    - "chmod\\s+777"
+    - "mkfs"
+    - "format\\s+[c-zC-Z]:"
+  suspicious_patterns:
+    - "&&"
+    - ";"
+    - "\\|\\|"
+    - "\\|"
+    - "powershell\\s+-enc"
+    - "base64\\s+(-d|--decode)"
+  redact_patterns:
+    - "(?i)(api[_-]?key|password|token|secret|passwd)\\s*[:=]\\s*['\"]?([^\\s'\"]+)"
+    - "(?i)bearer\\s+[a-zA-Z0-9_\\-\\.]{15,}"
+  max_logged_argument_chars: 500
+  danger_risk_score: 1.0
+  suspicious_risk_score: 0.6
 
 sensitive_tool_gate:
   enabled: true
-  threshold: 0.5  # TODO: tune this
+  default_role: "user"
+  sensitive_tools:
+    delete_file:
+      allowed_roles: ["admin"]
+      requires_approval: true
+    send_email:
+      allowed_roles: ["user", "admin"]
+      requires_approval: true
+    execute_code:
+      allowed_roles: ["admin"]
+      requires_approval: true
+    database_query:
+      allowed_roles: ["analyst", "admin"]
+      requires_approval: false
+    system_command:
+      allowed_roles: ["admin"]
+      requires_approval: true
+  block_risk_score: 0.95
+  escalate_risk_score: 0.7
 
 tool_anomaly:
   enabled: true
-  threshold: 0.5  # TODO: tune this
+  max_expected_ms:
+    calculator: 500
+    read_file: 1000
+    web_search: 5000
+    send_email: 3000
+    database_query: 4000
+  z_score_threshold: 3.0
+  min_samples: 10
+  hard_limit_ms: 10000
 
 usage_correlation:
   enabled: true
-  threshold: 0.5  # TODO: tune this
+  history_messages_to_check: 3
+  sensitive_mismatch_status: "escalate"
+  tool_intents:
+    calculator: ["calculate", "calc", "sum", "math", "add", "multiply", "divide", "compute", "count", "times"]
+    web_search: ["search", "lookup", "find", "google", "browse", "web", "internet", "news"]
+    read_file: ["read", "open", "file", "view", "document", "content", "cat"]
+    send_email: ["email", "send", "mail", "message", "notify"]
+    delete_file: ["delete", "remove", "erase", "unlink", "trash", "rm"]
+    database_query: ["sql", "query", "database", "select", "table", "records", "data"]
 
 rate_limiter:
   enabled: true
-  threshold: 0.5  # TODO: tune this
+  window_seconds: 60
+  max_calls_per_window: 20
+  max_calls_per_tool: 10
+  warn_ratio: 0.8
 
 session_terminator:
   enabled: true
-  threshold: 0.5  # TODO: tune this
+  warn_after_strikes: 2
+  terminate_after_strikes: 3
+  strike_window_seconds: 300
+
+tool_integrity:
+  enabled: true
+  trust_on_first_use: true
+  hidden_instruction_patterns:
+    - "ignore\\s+(all\\s+)?(previous|prior)\\s+instructions"
+    - "you\\s+must\\s+now"
+    - "system\\s*prompt"
+    - "act\\s+as\\s+a"
+
+data_leakage:
+  enabled: true
+  detectors:
+    api_keys: true
+    passwords: true
+    emails: true
+    phones: true
+    cnic: true
+    credit_cards: true
+  allowed_destinations: ["internal_service", "approved_mail"]
+  secret_risk_score: 1.0
+  pii_risk_score: 0.8
+
+information_flow:
+  enabled: true
+  untrusted_sources: ["web_search", "read_url", "fetch_external"]
+  privileged_sinks: ["send_email", "execute_code", "make_payment", "write_file"]
+  overlap_min_words: 4
+  memory_window_seconds: 120
 
