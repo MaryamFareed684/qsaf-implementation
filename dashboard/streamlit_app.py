@@ -5,6 +5,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from domains.domain1_prompt_injection.dashboard_section import render_domain1_tab
+from domains.domain2_role_context.dashboard_section import render_domain2_tab
 
 st.set_page_config(page_title="QSAF Dashboard", layout="centered")
 st.title("QSAF — Live Control Dashboard")
@@ -20,7 +21,7 @@ with tab1:
     render_domain1_tab()
 
 with tab2:
-    st.info("Domain 2 dashboard — not yet implemented.")
+    render_domain2_tab()
 
 with tab3:
     st.info("Domain 3 dashboard — not yet implemented.")
