@@ -3,7 +3,7 @@ domains/domain4_output_risk/controls/__init__.py
 
 Registers every control in this domain so the orchestrator can find them.
 When you finish implementing a control for real, you do NOT need to
-change this file — the class stays the same, only its internals change.
+change this file â€” the class stays the same, only its internals change.
 """
 
 from domains.domain4_output_risk.controls.or_001_jailbreak_output_filter import JailbreakOutputFilterOR001

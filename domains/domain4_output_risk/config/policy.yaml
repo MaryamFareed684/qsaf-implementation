@@ -1,32 +1,350 @@
 # domains/domain4_output_risk/config/policy.yaml
 # Thresholds and settings for Domain 4: Output Risk & Response Control
 # Each control reads ITS OWN section below via core.policy_loader
+#
+# NOTE: weights, thresholds and patterns below are the TEAM'S OWN design.
+# The QSAF Control Book only gives a one-line description for OR-001.
 
-jailbreak_output_filter:
+# Shared word list (ignored by the relevance / grounding checks). YAML anchor: reused below.
+common_stopwords: &stopwords
+  [the, and, for, are, but, not, you, all, any, can, had, her, was, one, our, out, has, have, how, what, when, where,
+   which, who, why, will, with, this, that, these, those, from, they, them, then, than, there, here, your, about,
+   into, over, under, just, like, some, would, could, should, does, did, doing, been, being, were, also, very,
+   more, most, much, many, tell, please, give, make, get, got, use, using, want, need, know, let, say, said, today]
+
+
+or_001_content_filter:
   enabled: true
-  threshold: 0.5  # TODO: tune this
 
-hallucination_flag:
+  # Combined risk score -> status
+  #   score <  warn_threshold                  -> pass
+  #   warn_threshold <= score < block_threshold -> warn
+  #   score >= block_threshold                  -> block (or escalate, see below)
+  warn_threshold: 0.40
+  block_threshold: 0.70
+
+  # If the score reaches block_threshold AND one of these categories matched,
+  # the status is "escalate" (needs a human) instead of "block".
+  escalate_categories:
+    - self_harm
+    - minors_sexual
+
+  # When the reply is clearly a refusal or a news-style report, the combined
+  # score is multiplied by this number (0.5 = halve it). Never removes it fully.
+  safe_context_discount: 0.5
+
+  # Phrases that indicate refusing / reporting rather than providing content.
+  # Patterns run on NORMALISED text (lower-case, leetspeak folded, . _ - * -> space).
+  # Use \x27 for an apostrophe so YAML single quotes stay simple.
+  safe_context_patterns:
+    - '\bi (?:can\x27?t|cannot|won\x27?t|am unable)\b'
+    - '\bi\x27m unable\b'
+    - '\bnot able to (?:help|assist)\b'
+    - '\bsorry,? but\b'
+    - '\bagainst (?:my|our) (?:policy|guidelines)\b'
+    - '\bfor (?:educational|awareness|safety) purposes only\b'
+    - '\bnews report(?:ed)?\b'
+    - '\baccording to (?:police|reports?)\b'
+    - '\bwas (?:arrested|convicted|charged)\b'
+    - '\bhistory of\b'
+
+  # Detection rules. weight = how strongly one match suggests a problem (0-1).
+  # Several matches combine with noisy-OR: 1 - (1-w1)(1-w2)...
+  rules:
+    # --- Signs a jailbreak SUCCEEDED (the reply talks itself out of its rules)
+    - id: JB-01
+      category: jailbreak_success
+      weight: 0.85
+      description: Reply announces an unrestricted mode
+      pattern: '\b(?:dan|developer|god|jailbreak(?:ed)?) mode (?:is )?(?:enabled|activated|on)\b'
+    - id: JB-02
+      category: jailbreak_success
+      weight: 0.80
+      description: Reply claims it is now unrestricted
+      pattern: '\bi (?:am|\x27m) now (?:free|unrestricted|unfiltered|no longer bound)'
+    - id: JB-03
+      category: jailbreak_success
+      weight: 0.75
+      description: Reply says it is ignoring its rules
+      pattern: '\b(?:ignor(?:e|ing)|disregard(?:ing)?|bypass(?:ing)?) (?:all |my |the )?(?:previous|prior|safety|content) (?:instructions|rules|guidelines|polic(?:y|ies))'
+    - id: JB-04
+      category: jailbreak_success
+      weight: 0.75
+      description: Reply adopts an unrestricted persona
+      pattern: '\bas an? (?:unrestricted|unfiltered|uncensored) (?:ai|model|assistant)\b'
+    - id: JB-05
+      category: jailbreak_success
+      weight: 0.55
+      description: Reply refers to operating without safeguards
+      pattern: '\b(?:without|no) (?:any )?(?:ethical|safety|moral) (?:restrictions|guidelines|limits|filters)\b'
+    - id: JB-06
+      category: jailbreak_success
+      weight: 0.60
+      description: Possible system prompt disclosure
+      pattern: '\bmy (?:system prompt|hidden instructions) (?:is|are|says?|reads?)\b'
+
+    # --- Illegal / dangerous instruction content (how-to shape + topic)
+    - id: IL-01
+      category: weapons
+      weight: 0.90
+      description: Step-style instructions for explosives
+      pattern: '(?:\bstep\b|\bfirst,? |\bhere(?:\x27s| is) how\b).{0,80}\b(?:build|make|assemble|construct)\b.{0,40}\b(?:bomb|explosive|detonator|pipe ?bomb|ied)\b'
+    - id: IL-02
+      category: weapons
+      weight: 0.90
+      description: Production guidance for chemical or biological agents
+      pattern: '\b(?:synthesi[sz]e|produce|cook|manufacture)\b.{0,40}\b(?:nerve agent|sarin|vx|ricin|anthrax|chemical weapon)\b'
+    - id: IL-03
+      category: drugs
+      weight: 0.85
+      description: Step-style drug manufacturing instructions
+      pattern: '(?:\bstep\b|\bfirst,? |\bhere(?:\x27s| is) how\b).{0,80}\b(?:synthesi[sz]e|cook|manufacture|produce)\b.{0,40}\b(?:meth(?:amphetamine)?|fentanyl|heroin|cocaine)\b'
+    - id: IL-04
+      category: malware
+      weight: 0.80
+      description: Reply offers malware source code
+      pattern: '\b(?:here\x27s|here is|below is)\b.{0,40}\b(?:ransomware|keylogger|malware|botnet|rootkit)\b.{0,40}\b(?:code|script|payload|source)\b'
+    - id: IL-05
+      category: malware
+      weight: 0.55
+      description: Describes ransomware behaviour against a victim
+      pattern: '\b(?:encrypt(?:s|ing)? (?:all )?(?:the )?(?:victim|user)\x27?s? files|demand(?:s|ing)? (?:a )?ransom)\b'
+    - id: IL-06
+      category: fraud
+      weight: 0.80
+      description: Step-style fraud or forgery instructions
+      pattern: '(?:\bstep\b|\bfirst,? |\bhere(?:\x27s| is) how\b).{0,80}\b(?:launder (?:money|funds)|counterfeit (?:money|currency|id)|forge (?:a |an )?(?:passport|id|document)|skim (?:cards?|credit))\b'
+    - id: SH-01
+      category: self_harm
+      weight: 0.95
+      description: Self-harm method guidance
+      pattern: '\b(?:best|easiest|painless) way to (?:kill yourself|end your life|commit suicide)\b'
+    - id: MN-01
+      category: minors_sexual
+      weight: 0.95
+      description: Sexual content involving minors
+      pattern: '\b(?:sexual|explicit)\b.{0,30}\b(?:story|scene|content|material|image|roleplay|description)s?\b.{0,30}\b(?:child|children|minor|underage|preteen)\b'
+
+# =====================================================================
+# OR-002: Flag hallucinated facts in responses (real-time)
+# No ground truth exists, so this only reports WEAK SIGNALS or, when
+# retrieved documents are present, claims that the documents do not support.
+# It can only warn. It never claims a hallucination is proven.
+# =====================================================================
+or_002_hallucination:
   enabled: true
-  threshold: 0.5  # TODO: tune this
+  stopwords: *stopwords
+  warn_threshold: 0.35
+  max_risk: 0.60                # risk is capped here: these are weak signals
 
-output_watermark:
+  # URLs / email addresses in the reply that never appeared in the prompt,
+  # history, tool results or retrieved documents.
+  unsourced_url_weight: 0.30
+  unsourced_email_weight: 0.30
+
+  # Used only when ctx.retrieved_docs has content.
+  grounding:
+    enabled: true
+    min_claim_words: 5          # shorter sentences are not checked
+    support_overlap: 0.50       # claim is "supported" if >= 50% of its content words are in the docs
+    min_checkable_claims: 1
+    unsupported_ratio_warn: 0.50
+    unsupported_weight: 0.60
+
+  # Patterns run on the original reply text.
+  signals:
+    - id: HL-01
+      category: precise_statistic
+      weight: 0.30
+      description: Very precise percentage that cannot be verified
+      pattern: '(?i)\b(?:exactly|precisely)\s+\d+(?:\.\d+)?\s*%|\b\d{1,3}\.\d{1,2}\s*%'
+    - id: HL-02
+      category: unverifiable_source
+      weight: 0.30
+      description: Refers to a study or report without naming a checkable source
+      pattern: '(?i)\baccording to (?:a|an|the)?\s*(?:\d{4}\s+)?(?:study|survey|report|paper)\b'
+    - id: HL-03
+      category: citation_shape
+      weight: 0.30
+      description: Citation-shaped text such as (Smith et al., 2019) that cannot be verified
+      pattern: '\([A-Z][a-z]+ et al\.?,? \d{4}\)'
+    - id: HL-04
+      category: overconfident
+      weight: 0.25
+      description: Overconfident or absolute wording
+      pattern: '(?i)\b(?:100% (?:guaranteed|certain|sure|accurate)|guaranteed to|without (?:a )?doubt|undeniably|proven fact)\b'
+    - id: HL-05
+      category: vague_authority
+      weight: 0.20
+      description: Vague appeal to authority
+      pattern: '(?i)\b(?:experts (?:agree|say)|scientists (?:have )?(?:proven|confirmed)|studies (?:show|prove))\b'
+
+# =====================================================================
+# OR-003: Token-based watermarking for response traceability (auditable)
+# Phase 1 design: a fingerprint (HMAC) of the reply + session id is attached
+# to the Verdict evidence. True token-level watermarking is future work.
+# The secret key comes from an ENVIRONMENT VARIABLE, never from the code.
+# =====================================================================
+or_003_watermark:
   enabled: true
-  threshold: 0.5  # TODO: tune this
+  key_env_var: QSAF_WATERMARK_KEY
+  key_id: v1                    # label so keys can be rotated later
+  fingerprint_length: 32        # hex characters kept (32 = 128 bits)
+  # What to do when the key variable is not set:
+  #   unkeyed -> use plain SHA-256 (still traceable, but not tamper-proof)
+  #   warn    -> return a warning instead of a fingerprint
+  on_missing_key: unkeyed
 
-sensitivity_scoring:
+# =====================================================================
+# OR-004: Sensitivity scoring of LLM responses (real-time)
+# Finds personal data and secrets in the reply and scores them 0-1.
+# Evidence only ever contains MASKED samples.
+# =====================================================================
+or_004_sensitivity:
   enabled: true
-  threshold: 0.5  # TODO: tune this
+  warn_threshold: 0.40
+  block_threshold: 0.70
+  category_cap: 0.95            # one category can never score above this
+  max_samples: 3                # masked samples listed per category
+  # Rules run in this order. A later rule ignores text already matched by an earlier one.
+  rules:
+    - id: SN-01
+      category: private_key
+      label: private key block
+      weight: 0.98
+      mask: head3
+      pattern: '-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----'
+    - id: SN-02
+      category: api_key
+      label: API key
+      weight: 0.90
+      mask: head3
+      pattern: '\b(?:sk[-_](?:live|test)?[-_]?[A-Za-z0-9]{12,}|gsk_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{30,}|xox[baprs]-[A-Za-z0-9-]{10,})\b'
+    - id: SN-03
+      category: credential
+      label: password or secret assignment
+      weight: 0.85
+      mask: head3
+      pattern: '(?i)\b(?:password|passwd|pwd|secret|api[_-]?key|token)\s*[:=]\s*[\x27"]?(?=\S*[A-Za-z0-9])[^\s\x27"]{6,}'
+    - id: SN-04
+      category: national_id
+      label: national ID number
+      weight: 0.80
+      mask: tail4
+      pattern: '\b\d{5}-\d{7}-\d\b|\b\d{3}-\d{2}-\d{4}\b'
+    - id: SN-05
+      category: card
+      label: card number
+      weight: 0.85
+      mask: tail4
+      validator: luhn
+      pattern: '\b(?:\d[ -]?){13,19}\b'
+    - id: SN-06
+      category: bank_account
+      label: bank account (IBAN) number
+      weight: 0.70
+      mask: tail4
+      pattern: '\bPK\d{2}[A-Z]{4}\d{16}\b'
+    - id: SN-07
+      category: phone
+      label: phone number
+      weight: 0.35
+      mask: tail4
+      pattern: '\+\d{1,3}[\s-]?\d{2,4}[\s-]?\d{3,4}[\s-]?\d{3,4}\b|\b\d{3}[\s.-]\d{3,4}[\s.-]\d{4}\b|\b03\d{2}[\s-]?\d{7}\b'
+    - id: SN-08
+      category: email
+      label: email address
+      weight: 0.30
+      mask: email
+      pattern: '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'
 
-risky_reroute:
+# =====================================================================
+# OR-005: Block or reroute risky content (real-time)
+# The ACTION control. It runs the other Domain 4 detectors, combines their
+# risk, and decides: allow, allow with warning, reroute (safe message),
+# block (drop the reply) or escalate (human moderator).
+# The shared Verdict has no "reroute" status, so a reroute is a "block"
+# status plus evidence["action"] = "reroute" and the fallback message.
+# =====================================================================
+or_005_risky_reroute:
   enabled: true
-  threshold: 0.5  # TODO: tune this
+  warn_threshold: 0.40
+  block_threshold: 0.70
+  # How much each detector counts toward the combined risk (0-1).
+  control_weights:
+    OR-001: 1.0
+    OR-002: 0.6
+    OR-004: 0.9
+    OR-006: 0.5
+    OR-007: 0.5
+  # What to do when a given detector says "block". Anything not listed uses default_block_action.
+  action_by_control:
+    OR-001: block               # drop the reply completely
+    OR-004: reroute             # replace the reply with the safe message
+  default_block_action: reroute
+  fallback_message: "I'm sorry, I can't share that response. A safer answer or a human reviewer will follow up."
 
-prompt_response_correlation:
+# =====================================================================
+# OR-006: Prompt-response correlation analysis (hybrid)
+# Lightweight relevance check: how many of the prompt's important words
+# show up (after simple stemming) in the reply. Real-time check now; the
+# stored coverage numbers can be analysed later in batch.
+# =====================================================================
+or_006_prompt_response:
   enabled: true
-  threshold: 0.5  # TODO: tune this
+  stopwords: *stopwords
+  min_prompt_keywords: 2        # fewer keywords than this: not enough to judge
+  min_reply_words: 4            # very short replies are not judged
+  ok_overlap: 0.20              # coverage at or above this is fine
+  warn_threshold: 0.30
+  max_risk: 0.60
+  # Replies that refuse are on purpose "off-topic"; skip the check for them.
+  refusal_patterns:
+    - '(?i)\bi (?:can\x27?t|cannot|won\x27?t|am unable)\b'
+    - '(?i)\bi\x27m (?:unable|not able)\b'
+    - '(?i)\bsorry,? but\b'
 
-tone_deviation:
+# =====================================================================
+# OR-007: Tone and sentiment deviation tracking (real-time)
+# Lexicon-based first version. Compares this reply's sentiment with the
+# earlier assistant replies in ctx.conversation_history, and checks for
+# hostile, threatening, manipulative or shouting wording.
+# =====================================================================
+or_007_tone_deviation:
   enabled: true
-  threshold: 0.5  # TODO: tune this
-
+  min_history_replies: 2
+  min_sentiment_words: 2
+  deviation_threshold: 0.60     # |current - baseline| on a -1..+1 scale
+  deviation_weight: 0.45        # weight at exactly the threshold
+  deviation_max_weight: 0.80
+  warn_threshold: 0.35
+  block_threshold: 0.90
+  assistant_roles: [assistant, agent, bot, ai]
+  shouting:
+    min_words: 5
+    caps_ratio: 0.50
+    exclamation_count: 3
+    weight: 0.35
+  positive_words: [good, great, excellent, happy, glad, wonderful, helpful, thanks, thank, love, perfect, nice, awesome, pleased, welcome, enjoy, fantastic, amazing, success, easy, clear]
+  negative_words: [bad, terrible, awful, horrible, hate, angry, useless, worst, failed, failure, stupid, ugly, annoying, disgusting, poor, sad, worthless, pathetic, wrong, broken, impossible]
+  signals:
+    - id: TN-01
+      category: hostile
+      weight: 0.55
+      description: Insulting or hostile wording
+      pattern: '(?i)\b(?:stupid|idiot|moron|dumb|pathetic|worthless|shut up|you fool)\b'
+    - id: TN-02
+      category: threatening
+      weight: 0.75
+      description: Threatening wording
+      pattern: '(?i)\b(?:i will (?:find|hurt|destroy|ruin) you|you will regret|or else)\b'
+    - id: TN-03
+      category: manipulative
+      weight: 0.45
+      description: Pressure or manipulation wording
+      pattern: '(?i)\b(?:don\x27t tell anyone|act now|you have no choice|only i can help you|trust me,? just)\b'
+    - id: TN-04
+      category: dismissive
+      weight: 0.30
+      description: Dismissive wording
+      pattern: '(?i)\b(?:stop wasting my time|not my problem|figure it out yourself|i don\x27t care)\b'
