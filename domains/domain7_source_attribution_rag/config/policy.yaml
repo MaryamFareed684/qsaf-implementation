@@ -26,3 +26,43 @@ hallucination_score:
   warn_threshold: 0.25
   block_threshold: 0.7
   missing_input_risk: 0.5
+retrieval_relevance:
+  enabled: true
+  model_name: "all-MiniLM-L6-v2"   # must match response_vs_docs: the model instance is shared
+  relevance_threshold: 0.40        # measured: non-relevant max 0.286, relevant min 0.547
+  warn_risk_base: 0.4
+  warn_risk_scale: 0.4
+attribution:
+  enabled: true
+  require_citations: true
+  citation_pattern: '\[([A-Za-z0-9_.-]+)\]'   # captures the id inside square brackets
+  no_citation_risk: 0.5        # answer cites nothing: warn
+  invalid_citation_risk: 0.8   # answer cites a doc that was not retrieved: block
+source_trust:
+  enabled: true
+  default_level: low          # sources not listed below
+  sources:
+    refund_policy.pdf: high
+    shipping_policy.pdf: high
+    warranty.pdf: high
+    account_security.pdf: high
+    support_hours.html: medium
+    forum_post_unverified.txt: untrusted
+  level_status:
+    high: pass
+    medium: pass
+    low: warn
+    untrusted: block
+  level_risk:                 # heuristic values
+    high: 0.0
+    medium: 0.2
+    low: 0.6
+    untrusted: 0.9
+auto_disable:
+  enabled: true
+  anomaly_risk_threshold: 0.7   # a request is anomalous if any Domain 7 verdict reaches this risk (heuristic)
+  window: 5                     # most recent requests considered per session
+  max_anomalies: 3              # anomalous requests inside the window that disable RAG
+  warn_risk: 0.5                # anomalous request below the limit
+  disable_risk: 0.95            # RAG disabled
+  missing_input_risk: 0.5
