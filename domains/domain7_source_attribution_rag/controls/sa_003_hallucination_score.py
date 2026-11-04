@@ -82,7 +82,10 @@ class HallucinationScoreSA003(Control):
         doc_numbers = set(_NUMBER.findall(doc_text))
         doc_words = {w.lower() for w in re.findall(r"[A-Za-z]+", doc_text)}
 
-        numbers, names = extract_facts(answer)
+        citation_pattern = (load_domain_policy(DOMAIN_FOLDER).get("attribution") or {}).get(
+            "citation_pattern", r"\[([A-Za-z0-9_.-]+)\]")
+        answer_for_facts = re.sub(citation_pattern, " ", answer)  # citation ids such as [kb-001] are not facts
+        numbers, names = extract_facts(answer_for_facts)
         bad_numbers = [n for n in numbers if n not in doc_numbers]
         bad_names = [n for n in names if n.lower() not in doc_words]
         total_facts = len(numbers) + len(names)
