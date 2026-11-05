@@ -186,3 +186,18 @@ def test_sa003_ignores_citation_ids_as_numbers():
     v = BY_ID["SA-003"].safe_evaluate(ctx)
     assert v.evidence["ungrounded_numbers"] == []
     assert v.status == "pass"
+
+def test_sa007_does_not_count_offtopic_warnings_as_anomalies():
+    from domains.domain7_source_attribution_rag.controls.sa_007_auto_disable import is_rag_disabled
+    offtopic = [_v("SA-004", "warn", 0.77)]
+    for _ in range(4):
+        assert _sa007("s-off", offtopic).status == "pass"
+    assert not is_rag_disabled("s-off")
+
+
+def test_sa003_reason_names_the_ungrounded_number():
+    ctx = RequestContext("t", "u", "q", retrieved_docs=[dict(KB["kb-001"])],
+                         agent_output="You can request a refund within 30 days of delivery [kb-001].")
+    ctx.metadata["prior_verdicts"] = [_v("SA-002", "pass", 0.0, {"unsupported_ratio": 0.0})]
+    v = BY_ID["SA-003"].safe_evaluate(ctx)
+    assert v.status == "warn" and "30" in v.reason

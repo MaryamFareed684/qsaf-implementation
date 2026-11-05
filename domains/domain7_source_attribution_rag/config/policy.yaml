@@ -60,7 +60,7 @@ source_trust:
     untrusted: 0.9
 auto_disable:
   enabled: true
-  anomaly_risk_threshold: 0.7   # a request is anomalous if any Domain 7 verdict reaches this risk (heuristic)
+  anomaly_statuses: [block]     # a request is anomalous if any other Domain 7 control blocks it
   window: 5                     # most recent requests considered per session
   max_anomalies: 3              # anomalous requests inside the window that disable RAG
   warn_risk: 0.5                # anomalous request below the limit

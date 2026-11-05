@@ -3,8 +3,8 @@ SA-007: Auto-disable RAG pipeline upon anomaly (Real-Time)
 Domain: Domain 7: Source Attribution & RAG Monitoring
 
 Session-level control. A request is "anomalous" when any other Domain 7 verdict
-(SA-001..SA-006) in ctx.metadata["prior_verdicts"] reaches the policy risk
-threshold. SA-007 keeps a sliding window per session; when enough recent
+(SA-001..SA-006) in ctx.metadata["prior_verdicts"] has a blocking status, per the policy list of
+statuses. SA-007 keeps a sliding window per session; when enough recent
 requests are anomalous it returns block with evidence["rag_disabled"] = True.
 The state is latched until reset_session() is called by an operator.
 
@@ -86,7 +86,7 @@ class AutoDisableSA007(Control):
             )
 
         triggering = [v.control_id for v in sa_verdicts
-                      if v.risk_score >= policy["anomaly_risk_threshold"]]
+                      if v.status in policy["anomaly_statuses"]]
         anomalous = bool(triggering)
         state["window"].append(anomalous)
         count = sum(state["window"])

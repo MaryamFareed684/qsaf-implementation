@@ -108,4 +108,12 @@ class HallucinationScoreSA003(Control):
             status, reason = "warn", f"Possible hallucination ({score})."
         else:
             status, reason = "pass", f"Low hallucination likelihood ({score})."
+        parts = []
+        if text_ratio > 0:
+            parts.append(f"{round(text_ratio * 100)}% of answer sentences unsupported")
+        not_found = bad_numbers + bad_names
+        if not_found:
+            parts.append("not found in any retrieved document: " + ", ".join(not_found))
+        if parts and status != "pass":
+            reason = reason + " " + "; ".join(parts) + "."
         return self._verdict(status, score, reason, evidence)
