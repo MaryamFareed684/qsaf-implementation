@@ -201,3 +201,64 @@ def test_sa003_reason_names_the_ungrounded_number():
     ctx.metadata["prior_verdicts"] = [_v("SA-002", "pass", 0.0, {"unsupported_ratio": 0.0})]
     v = BY_ID["SA-003"].safe_evaluate(ctx)
     assert v.status == "warn" and "30" in v.reason
+
+# ---------- fixes after the first evaluation ----------
+
+def _sa2_evidence(sentences, ratio=0.0):
+    return _v("SA-002", "pass", 0.0, {"unsupported_ratio": ratio, "sentences": sentences})
+
+
+def test_sa003_one_wrong_number_among_correct_facts_still_warns():
+    ctx = RequestContext("t", "u", "q", retrieved_docs=[dict(KB["kb-002"])],
+                         agent_output="Express shipping takes 1 to 2 business days and costs 7 dollars [kb-002].")
+    ctx.metadata["prior_verdicts"] = [_sa2_evidence([])]
+    v = BY_ID["SA-003"].safe_evaluate(ctx)
+    assert v.status == "warn" and v.evidence["ungrounded_numbers"] == ["7"]
+
+
+def test_sa003_checks_numbers_against_the_cited_document_only():
+    docs = [dict(KB["kb-005"]), dict(KB["kb-004"])]            # kb-004 contains "6 pm"
+    ctx = RequestContext("t", "u", "q", retrieved_docs=docs,
+                         agent_output="Passwords must be at least 6 characters long [kb-005].")
+    ctx.metadata["prior_verdicts"] = [_sa2_evidence([])]
+    assert BY_ID["SA-003"].safe_evaluate(ctx).status == "warn"
+
+
+def test_sa003_flags_negation_and_antonym_conflicts_but_not_agreement():
+    docs = [dict(KB["kb-003"])]
+    neg = RequestContext("t", "u", "q", retrieved_docs=docs, agent_output="The warranty covers water damage [kb-003].")
+    neg.metadata["prior_verdicts"] = [_sa2_evidence([{
+        "text": "The warranty covers water damage.",
+        "best_doc_sentence": "The warranty does not cover water damage or accidental drops.",
+        "supported": True, "max_similarity": 0.9, "best_doc_id": "kb-003"}])]
+    v = BY_ID["SA-003"].safe_evaluate(neg)
+    assert v.status == "warn" and v.evidence["conflicts"][0]["kind"] == "negation"
+
+    opp = RequestContext("t", "u", "q", retrieved_docs=[dict(KB["kb-004"])], agent_output="Support is open on holidays [kb-004].")
+    opp.metadata["prior_verdicts"] = [_sa2_evidence([{
+        "text": "Support is open on holidays.",
+        "best_doc_sentence": "Support is closed on public holidays.",
+        "supported": True, "max_similarity": 0.9, "best_doc_id": "kb-004"}])]
+    assert BY_ID["SA-003"].safe_evaluate(opp).evidence["conflicts"][0]["kind"] == "open/closed"
+
+    same = RequestContext("t", "u", "q", retrieved_docs=docs, agent_output="The warranty does not cover water damage [kb-003].")
+    same.metadata["prior_verdicts"] = [_sa2_evidence([{
+        "text": "The warranty does not cover water damage.",
+        "best_doc_sentence": "The warranty does not cover water damage or accidental drops.",
+        "supported": True, "max_similarity": 0.95, "best_doc_id": "kb-003"}])]
+    assert BY_ID["SA-003"].safe_evaluate(same).status == "pass"
+
+
+def test_pure_refusal_is_not_flagged_by_the_answer_checks():
+    ctx = RequestContext("t", "u", "Who is the CEO?", retrieved_docs=[dict(KB["kb-001"])],
+                         agent_output="I could not find that information in the retrieved documents.")
+    verdicts = run_checks(ctx)
+    assert all(v.status == "pass" for v in verdicts.values()), {k: v.status for k, v in verdicts.items()}
+    assert verdicts["SA-002"].evidence["refusal"] is True
+
+
+def test_refusal_cannot_hide_an_invented_claim():
+    ctx = RequestContext("t", "u", "What is the fee?", retrieved_docs=[dict(KB["kb-001"])],
+                         agent_output="I could not find the exact fee, but it is 40 dollars [kb-001].")
+    verdicts = run_checks(ctx)
+    assert verdicts["SA-003"].status != "pass" and "40" in verdicts["SA-003"].evidence["ungrounded_numbers"]

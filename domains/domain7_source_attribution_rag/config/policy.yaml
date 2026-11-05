@@ -1,4 +1,3 @@
-# Policy thresholds for Domain 7 — to be filled in Phase 2
 # domains/domain7_source_attribution_rag/config/policy.yaml
 # Thresholds and settings for Domain 7: Source Attribution & RAG Monitoring
 # Each control reads ITS OWN section below via core.policy_loader
@@ -8,36 +7,73 @@ source_tracking:
   required_fields:
     - doc_id
     - source
-  warn_risk_base: 0.4        # risk when at least one doc lacks a required field
-  warn_risk_per_missing: 0.2 # extra risk per affected doc, capped at 1.0
+  warn_risk_base: 0.4         # risk when at least one doc lacks a required field
+  warn_risk_per_missing: 0.2  # extra risk per affected doc, capped at 1.0
+
 response_vs_docs:
   enabled: true
   model_name: "all-MiniLM-L6-v2"
-  support_threshold: 0.55   # measured gap: unsupported max 0.375, contradicted min 0.751
-  min_words: 3              # shorter sentences are ignored
-  block_ratio: 0.5          # share of unsupported sentences that triggers block
+  support_threshold: 0.55     # re-set by calibrate_domain7.py --apply
+  lexical_support: 0.8        # a sentence also counts as supported if this share of its content words is in its best document
+  min_words: 3                # shorter sentences are ignored
+  block_ratio: 0.5            # share of unsupported sentences that triggers block
   warn_risk_base: 0.4
   warn_risk_scale: 0.5
   no_docs_risk: 0.6
+
 hallucination_score:
   enabled: true
-  weight_text: 0.6      # weight of SA-002's unsupported-sentence ratio
-  weight_facts: 0.4     # weight of ungrounded numbers/names (heuristic, to be tuned in evaluation)
+  weight_text: 0.6            # weight of SA-002's unsupported-sentence ratio
+  step_ungrounded_fact: 0.4   # added per number or name found in no cited document
+  step_conflict: 0.4          # added per sentence that contradicts its source sentence
   warn_threshold: 0.25
   block_threshold: 0.7
   missing_input_risk: 0.5
+  antonym_pairs:
+    - [open, closed]
+    - [free, fee]
+    - [required, optional]
+    - [allowed, prohibited]
+
 retrieval_relevance:
   enabled: true
-  model_name: "all-MiniLM-L6-v2"   # must match response_vs_docs: the model instance is shared
-  relevance_threshold: 0.40        # measured: non-relevant max 0.286, relevant min 0.547
+  model_name: "all-MiniLM-L6-v2"   # re-set by calibrate_domain7.py --apply
+  relevance_threshold: 0.40        # re-set by calibrate_domain7.py --apply
   warn_risk_base: 0.4
   warn_risk_scale: 0.4
+
 attribution:
   enabled: true
   require_citations: true
   citation_pattern: '\[([A-Za-z0-9_.-]+)\]'   # captures the id inside square brackets
   no_citation_risk: 0.5        # answer cites nothing: warn
   invalid_citation_risk: 0.8   # answer cites a doc that was not retrieved: block
+
+refusal:
+  enabled: true
+  max_words: 20               # a refusal sentence is short
+  phrases:
+    - "could not find"
+    - "cannot find"
+    - "can't find"
+    - "unable to find"
+    - "do not say"
+    - "does not say"
+    - "do not mention"
+    - "does not mention"
+    - "not mentioned"
+    - "no information"
+    - "not specified"
+    - "don't know"
+    - "do not know"
+  blockers:                   # a sentence containing one of these is never treated as a pure refusal
+    - but
+    - however
+    - although
+    - though
+    - except
+    - besides
+
 source_trust:
   enabled: true
   default_level: low          # sources not listed below
@@ -68,11 +104,12 @@ source_trust:
     medium: 0.2
     low: 0.6
     untrusted: 0.9
+
 auto_disable:
   enabled: true
-  anomaly_statuses: [block]     # a request is anomalous if any other Domain 7 control blocks it
-  window: 5                     # most recent requests considered per session
-  max_anomalies: 3              # anomalous requests inside the window that disable RAG
-  warn_risk: 0.5                # anomalous request below the limit
-  disable_risk: 0.95            # RAG disabled
+  anomaly_statuses: [block]   # a request is anomalous if any other Domain 7 control blocks it
+  window: 5                   # most recent requests considered per session
+  max_anomalies: 3            # anomalous requests inside the window that disable RAG
+  warn_risk: 0.5              # anomalous request below the limit
+  disable_risk: 0.95          # RAG disabled
   missing_input_risk: 0.5

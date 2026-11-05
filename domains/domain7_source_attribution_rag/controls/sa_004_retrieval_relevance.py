@@ -2,24 +2,24 @@
 SA-004: Flag mismatch between retrieval and output (Real-Time)
 Domain: Domain 7: Source Attribution & RAG Monitoring
 
-Checks that the retrieved documents are relevant to the user's question. If the
-best question-to-document similarity is below the threshold, the retriever
-fetched the wrong material, so even a faithful answer cannot be trusted.
-This covers failure 6 (bad retrieval), which SA-002 and SA-003 cannot see
-because they only compare the answer with the documents.
+Checks that the retrieved documents are relevant to the user's question. If the best
+question-to-document similarity is below the threshold, the retriever fetched the wrong
+material, so even a faithful answer cannot be trusted (failure 6, bad retrieval, which
+SA-002 and SA-003 cannot see because they only compare the answer with the documents).
 
-Known limits: thresholds were measured on short documents; long documents
-dilute question similarity. One irrelevant doc among relevant ones is tolerated.
+If the answer is itself a refusal ("I could not find that in the documents") irrelevant
+retrieval is the expected situation and the control passes.
+
+Known limits: the model and threshold come from calibrate_domain7.py and depend on the
+document collection; one irrelevant doc among relevant ones is tolerated.
 """
 
 import numpy as np
 
 from core.control_base import Control
 from core.models import RequestContext, Verdict
-from core.policy_loader import load_domain_policy
+from domains.domain7_source_attribution_rag import common
 from domains.domain7_source_attribution_rag.controls.sa_002_response_vs_docs import _get_model
-
-DOMAIN_FOLDER = "domain7_source_attribution_rag"
 
 
 class RetrievalRelevanceSA004(Control):
@@ -38,7 +38,8 @@ class RetrievalRelevanceSA004(Control):
         )
 
     def evaluate(self, ctx: RequestContext) -> Verdict:
-        policy = load_domain_policy(DOMAIN_FOLDER).get("retrieval_relevance")
+        full = common.load_policy()
+        policy = full.get("retrieval_relevance")
         if not policy:
             return self._verdict("warn", 0.5, "Missing 'retrieval_relevance' section in policy.yaml.")
         if not policy.get("enabled", True):
@@ -51,10 +52,20 @@ class RetrievalRelevanceSA004(Control):
         if not docs:
             return self._verdict("pass", 0.0, "No retrieved documents; relevance cannot be assessed (SA-002 covers this).")
 
+        answer = (ctx.agent_output or "").strip()
+        if answer:
+            sentences = common.split_sentences(common.strip_citations(answer, common.citation_pattern(full)))
+            refusal_policy = full.get("refusal")
+            if sentences and all(common.is_refusal_sentence(s, refusal_policy) for s in sentences):
+                return self._verdict(
+                    "pass", 0.0,
+                    "Answer declines to answer, so irrelevant retrieval is the expected situation.",
+                    {"refusal": True},
+                )
+
         try:
             model = _get_model(policy["model_name"])
-            emb = model.encode([question] + [str(d["text"]) for d in docs],
-                               normalize_embeddings=True)
+            emb = model.encode([question] + [str(d["text"]) for d in docs], normalize_embeddings=True)
         except Exception as exc:
             return self._verdict("warn", 0.5, f"Could not compute embeddings: {exc}")
 
@@ -72,6 +83,7 @@ class RetrievalRelevanceSA004(Control):
             "best_similarity": round(best, 3),
             "best_doc_id": per_doc[best_i]["doc_id"],
             "threshold": threshold,
+            "model_name": policy["model_name"],
             "docs": per_doc,
         }
 
