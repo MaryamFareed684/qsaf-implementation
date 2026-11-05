@@ -13,7 +13,7 @@ source_tracking:
 response_vs_docs:
   enabled: true
   model_name: "all-MiniLM-L6-v2"
-  support_threshold: 0.55     # re-set by calibrate_domain7.py --apply
+  support_threshold: 0.694     # calibrated on the dev set
   lexical_support: 0.8        # a sentence also counts as supported if this share of its content words is in its best document
   min_words: 3                # shorter sentences are ignored
   block_ratio: 0.5            # share of unsupported sentences that triggers block
@@ -37,8 +37,8 @@ hallucination_score:
 
 retrieval_relevance:
   enabled: true
-  model_name: "all-MiniLM-L6-v2"   # re-set by calibrate_domain7.py --apply
-  relevance_threshold: 0.40        # re-set by calibrate_domain7.py --apply
+  model_name: "multi-qa-MiniLM-L6-cos-v1"   # chosen on the dev set
+  relevance_threshold: 0.34        # calibrated on the dev set
   warn_risk_base: 0.4
   warn_risk_scale: 0.4
 

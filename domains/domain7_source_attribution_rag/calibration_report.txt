@@ -1,0 +1,43 @@
+﻿py : Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate 
+limits and faster downloads.
+At line:2 char:1
++ py domains\domain7_source_attribution_rag\calibrate_domain7.py --appl ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Warning: You ar...ster downloads.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+Loading weights:   0%|          | 0/103 [00:00<?, ?it/s]
+Loading weights: 100%|##########| 103/103 [00:00<00:00, 1539.02it/s]
+C:\Users\Lenovo\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\huggingface_hub\file_download.py:149: 
+UserWarning: `huggingface_hub` cache-system uses symlinks by default to efficiently store duplicated files but your 
+machine does not support them in 
+C:\Users\Lenovo\.cache\huggingface\hub\models--sentence-transformers--multi-qa-MiniLM-L6-cos-v1. Caching files will 
+still work but in a degraded version that might require more space on your disk. This warning can be disabled by 
+setting the `HF_HUB_DISABLE_SYMLINKS_WARNING` environment variable. For more details, see 
+https://huggingface.co/docs/huggingface_hub/how-to-cache#limitations.
+To support symlinks on Windows, you either need to activate Developer Mode or to run Python as an administrator. In 
+order to activate developer mode, see this article: 
+https://docs.microsoft.com/en-us/windows/apps/get-started/enable-your-device-for-development
+  warnings.warn(message)
+C:\Users\Lenovo\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\huggingface_hub\file_download.py:149: 
+UserWarning: `huggingface_hub` cache-system uses symlinks by default to efficiently store duplicated files but your 
+machine does not support them in C:\Users\Lenovo\.cache\huggingface\hub. Caching files will still work but in a 
+degraded version that might require more space on your disk. This warning can be disabled by setting the 
+`HF_HUB_DISABLE_SYMLINKS_WARNING` environment variable. For more details, see 
+https://huggingface.co/docs/huggingface_hub/how-to-cache#limitations.
+To support symlinks on Windows, you either need to activate Developer Mode or to run Python as an administrator. In 
+order to activate developer mode, see this article: 
+https://docs.microsoft.com/en-us/windows/apps/get-started/enable-your-device-for-development
+  warnings.warn(message)
+SA-002 support_threshold: 0.694  (balanced accuracy 0.98 on 32 supported and 6 unsupported sentences)
+   supported sentences:   min sim 0.524
+   unsupported sentences: max sim 0.651
+SA-004 all-MiniLM-L6-v2: threshold 0.361, balanced accuracy 0.88 (relevant: min 0.278 mean 0.568; irrelevant: max 0.583 mean 0.217; 26 relevant and 30 irrelevant cases)
+
+Loading weights:   0%|          | 0/103 [00:00<?, ?it/s]
+Loading weights: 100%|##########| 103/103 [00:00<00:00, 1028.73it/s]
+SA-004 multi-qa-MiniLM-L6-cos-v1: threshold 0.340, balanced accuracy 0.90 (relevant: min 0.307 mean 0.555; irrelevant: max 0.574 mean 0.201; 26 relevant and 30 irrelevant cases)
+
+Chosen for SA-004: multi-qa-MiniLM-L6-cos-v1 with threshold 0.34 (balanced accuracy 0.90)
+policy.yaml updated.
