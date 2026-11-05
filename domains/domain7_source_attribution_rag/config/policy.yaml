@@ -48,6 +48,16 @@ source_trust:
     account_security.pdf: high
     support_hours.html: medium
     forum_post_unverified.txt: untrusted
+    library_rules.pdf: high
+    membership.pdf: high
+    opening_hours.html: medium
+    study_rooms.pdf: high
+    digital_services.pdf: high
+    printing.pdf: high
+    events.pdf: high
+    donations.pdf: high
+    anonymous_blog.txt: untrusted
+    social_media_post.txt: untrusted
   level_status:
     high: pass
     medium: pass

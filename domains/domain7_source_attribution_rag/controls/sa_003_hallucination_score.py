@@ -115,5 +115,5 @@ class HallucinationScoreSA003(Control):
         if not_found:
             parts.append("not found in any retrieved document: " + ", ".join(not_found))
         if parts and status != "pass":
-            reason = reason + " " + "; ".join(parts) + "."
+            reason = reason + " Details: " + "; ".join(parts) + "."
         return self._verdict(status, score, reason, evidence)
