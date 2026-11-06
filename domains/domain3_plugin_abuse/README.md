@@ -33,8 +33,10 @@ Per QSAF architectural rules, domain-specific parameters passed in `ctx.metadata
 
 | Metadata Key | Type | Description | Used By |
 |---|---|---|---|
-| `domain3_user_role` | `str` | Security role of the invoking user (e.g., `"user"`, `"admin"`, `"analyst"`). Defaults to `"user"`. | PL-003 |
+| `domain3_user_role` | `str` | Security role of the invoking user (e.g., `"user"`, `"admin"`, `"analyst"`). Defaults to `"user"`. | PL-003, PL-007 |
 | `domain3_approved_actions` | `list[str]` | List of sensitive tool names that have received human confirmation/approval. | PL-003 |
+| `domain3_strike` / `domain3_breach` | `bool` | Explicit signal indicating an external or cross-domain security breach strike. | PL-007 |
+| `domain3_breach_reason` | `str` | Reason description accompanying an explicit breach strike. | PL-007 |
 | `domain3_tool_definitions` | `list[dict]` | Registered tool specifications (name, description, parameters) used for integrity hashing. | PL-008 (Day 3) |
 
 ---
@@ -129,6 +131,8 @@ Run the standalone demo:
 python domains/domain3_plugin_abuse/demo_domain3.py
 ```
 
+> **Evaluation Methodology:** Metrics are evaluated across the 10 demonstration scenarios, covering benign executions (math calculation, file reading, web search, approved email), authorization gates, command injection, path traversal, prompt-tool drift, call flooding, and persistent strike accumulation.
+
 ### Verified Metrics Output:
 - **Attack-Blocking Rate:** 100.0% (target: $\ge$ 90%)
 - **False-Positive Rate:** 0.0% (target: $\le$ 5%)
@@ -140,7 +144,7 @@ python domains/domain3_plugin_abuse/demo_domain3.py
 ## How to Test Domain 3
 
 ```bash
-# Run Domain 3 standalone test suite (44 tests)
+# Run Domain 3 standalone test suite (49 tests)
 pytest domains/domain3_plugin_abuse/tests/ -v
 
 # Run the complete end-to-end integration test
@@ -157,7 +161,7 @@ pytest tests/integration/ -v
 - [x] PL-005 implemented and tested
 - [x] PL-006 implemented and tested
 - [x] PL-007 implemented and tested
-- [x] `tests/test_domain3_plugin_abuse.py` passes (44/44 passed)
+- [x] `tests/test_domain3_plugin_abuse.py` passes (49/49 passed)
 - [x] Integration tests pass (4/4 passed)
 - [x] Standalone demo (`demo_domain3.py`) fully working with metrics output
 

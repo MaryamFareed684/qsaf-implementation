@@ -33,11 +33,16 @@ class SessionTerminatorPL007(Control):
 
     def _is_breach(self, ctx: RequestContext, policy: dict) -> tuple[bool, str]:
         """Detect whether the current request constitutes a security breach."""
-        # 1. Explicit metadata strike signal
-        if ctx.metadata.get("domain3_breach") or ctx.metadata.get("strike"):
-            return True, ctx.metadata.get("breach_reason", "Explicit breach metadata flag")
+        # 1. Explicit metadata strike signal (supporting domain3_ prefix)
+        if ctx.metadata.get("domain3_breach") or ctx.metadata.get("domain3_strike") or ctx.metadata.get("strike"):
+            reason = (
+                ctx.metadata.get("domain3_breach_reason")
+                or ctx.metadata.get("breach_reason")
+                or "Explicit breach metadata flag"
+            )
+            return True, reason
 
-        # 2. Check tool calls against dangerous patterns or unauthorized sensitive tools
+        # 2. Check tool calls against dangerous patterns, disallowed tools, or unauthorized roles
         tool_whitelist_cfg = policy.get("tool_whitelist", {})
         allowed_tools = tool_whitelist_cfg.get("allowed_tools", [])
         command_cfg = policy.get("command_tracking", {})
@@ -45,9 +50,7 @@ class SessionTerminatorPL007(Control):
 
         sensitive_cfg = policy.get("sensitive_tool_gate", {})
         sensitive_tools = sensitive_cfg.get("sensitive_tools", {})
-        approved_actions = ctx.metadata.get("domain3_approved_actions", [])
-        if isinstance(approved_actions, str):
-            approved_actions = [approved_actions]
+        user_role = ctx.metadata.get("domain3_user_role", sensitive_cfg.get("default_role", "user"))
 
         for call in ctx.tool_calls or []:
             if not isinstance(call, dict):
@@ -64,11 +67,12 @@ class SessionTerminatorPL007(Control):
                 if re.search(pat, f"{t_name} {args}", re.IGNORECASE):
                     return True, f"Dangerous command pattern in tool '{t_name}'"
 
-            # Sensitive tool without approval
+            # Unauthorized role for sensitive tool
             if t_name in sensitive_tools:
                 tool_rule = sensitive_tools[t_name]
-                if tool_rule.get("requires_approval", False) and t_name not in approved_actions:
-                    return True, f"Unapproved execution of sensitive tool '{t_name}'"
+                allowed_roles = tool_rule.get("allowed_roles", [])
+                if allowed_roles and user_role not in allowed_roles:
+                    return True, f"Role '{user_role}' unauthorized for sensitive tool '{t_name}'"
 
         return False, ""
 
@@ -89,6 +93,8 @@ class SessionTerminatorPL007(Control):
         warn_strikes = int(config.get("warn_after_strikes", 2))
         terminate_strikes = int(config.get("terminate_after_strikes", 3))
         window_seconds = float(config.get("strike_window_seconds", 300))
+        terminate_risk = float(config.get("terminate_risk_score", 1.0))
+        warn_risk = float(config.get("warn_risk_score", 0.7))
 
         session_id = ctx.session_id or "anonymous_session"
         now = time.time()
@@ -114,7 +120,7 @@ class SessionTerminatorPL007(Control):
                 control_id=self.control_id,
                 domain=self.domain,
                 status="block",
-                risk_score=1.0,
+                risk_score=terminate_risk,
                 reason=(
                     f"Session '{session_id}' terminated: accumulated {count} security breach strike(s) "
                     f"within {window_seconds:.0f}s (threshold: {terminate_strikes}). Last breach: {reason}."
@@ -134,7 +140,7 @@ class SessionTerminatorPL007(Control):
                 control_id=self.control_id,
                 domain=self.domain,
                 status="warn",
-                risk_score=0.7,
+                risk_score=warn_risk,
                 reason=(
                     f"Session '{session_id}' approaching termination: {count}/{terminate_strikes} "
                     f"security breach strike(s) recorded."

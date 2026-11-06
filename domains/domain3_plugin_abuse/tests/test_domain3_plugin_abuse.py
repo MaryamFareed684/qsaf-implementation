@@ -528,3 +528,112 @@ def test_pl007_strike_accumulation_and_termination():
     assert v3.risk_score == 1.0
     assert v3.evidence.get("terminate_session") is True
 
+
+def test_pl005_word_perform_does_not_match_rm():
+    control = UsageCorrelationPL005()
+    # "perform" contains "rm", but is NOT the word "rm"
+    ctx = RequestContext(
+        session_id="s-regex",
+        user_id="u1",
+        raw_prompt="Please perform a routine health check on the server",
+        tool_calls=[{"name": "delete_file", "arguments": {"filepath": "/var/log/syslog"}}],
+    )
+    verdict = control.evaluate(ctx)
+    # Because "perform" does not match "rm", delete_file is correctly flagged as uncorrelated sensitive tool
+    assert verdict.status == "escalate"
+    assert "intent" in verdict.reason.lower()
+
+
+def test_pl007_unapproved_sensitive_tool_is_not_a_strike():
+    control = SessionTerminatorPL007()
+    control.reset_history()
+    ctx = RequestContext(
+        session_id="benign-email-session",
+        user_id="user1",
+        raw_prompt="Send meeting minutes to team",
+        tool_calls=[{"name": "send_email", "arguments": {"to": "team@co.com", "subject": "Minutes", "body": "Notes"}}],
+        metadata={"domain3_user_role": "user"},
+    )
+    # Routine escalation should NOT be treated as a security breach strike
+    for _ in range(3):
+        v = control.evaluate(ctx)
+        assert v.status == "pass"
+        assert v.evidence.get("strike_count") == 0
+
+
+def test_pl007_isolated_session_strikes():
+    control = SessionTerminatorPL007()
+    control.reset_history()
+    ctx_bad = RequestContext(
+        session_id="attacker-session",
+        user_id="bad_user",
+        raw_prompt="drop db",
+        tool_calls=[{"name": "system_command", "arguments": {"cmd": "rm -rf /"}}],
+    )
+    control.evaluate(ctx_bad)
+    control.evaluate(ctx_bad)
+
+    ctx_good = RequestContext(
+        session_id="innocent-session",
+        user_id="good_user",
+        raw_prompt="search docs",
+        tool_calls=[{"name": "web_search", "arguments": {"query": "python"}}],
+    )
+    v_good = control.evaluate(ctx_good)
+    assert v_good.status == "pass"
+    assert v_good.evidence.get("strike_count") == 0
+
+
+def test_pl007_strike_window_expiration():
+    import time
+    control = SessionTerminatorPL007()
+    control.reset_history()
+    # Seed expired strikes (older than 300s window)
+    control._strikes["expire-session"] = [time.time() - 400, time.time() - 350]
+
+    ctx = RequestContext(
+        session_id="expire-session",
+        user_id="u1",
+        raw_prompt="attack",
+        tool_calls=[{"name": "delete_file", "arguments": {"filepath": "/etc/shadow"}}],
+    )
+    verdict = control.evaluate(ctx)
+    # Expired strikes pruned, only 1 new active strike -> session in good standing (pass)
+    assert verdict.status == "pass"
+    assert verdict.evidence.get("strike_count") == 1
+
+
+def test_pl007_pipeline_short_circuit_accumulation():
+    """Verify PL-007 at index 0 accumulates strikes across orchestrator runs."""
+    from core.orchestrator import Orchestrator
+    from domains.domain3_plugin_abuse.controls import ALL_CONTROLS as D3_CONTROLS
+
+    orch = Orchestrator()
+    for c in D3_CONTROLS:
+        if hasattr(c, "reset_history"):
+            c.reset_history()
+        orch.register(c)
+
+    ctx_attack = RequestContext(
+        session_id="pipeline-strike-sess",
+        user_id="u1",
+        raw_prompt="delete system log",
+        tool_calls=[{"name": "delete_file", "arguments": {"filepath": "/var/log/sys.log"}}],
+    )
+
+    # Run 1: Strike 1 recorded by PL-007, request blocked downstream by PL-001
+    res1 = orch.run_layer("execution", ctx_attack)
+    assert res1.final_status == "block"
+
+    # Run 2: Strike 2 recorded by PL-007, request blocked downstream
+    res2 = orch.run_layer("execution", ctx_attack)
+    assert res2.final_status == "block"
+
+    # Run 3: Strike 3 recorded by PL-007 -> terminated on PL-007 immediately!
+    res3 = orch.run_layer("execution", ctx_attack)
+    assert res3.final_status == "block"
+    pl007_verdict = [v for v in res3.verdicts if v.control_id == "PL-007"][0]
+    assert pl007_verdict.status == "block"
+    assert pl007_verdict.evidence.get("terminate_session") is True
+
+

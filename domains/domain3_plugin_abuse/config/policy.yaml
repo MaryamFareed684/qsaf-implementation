@@ -97,11 +97,16 @@ tool_anomaly:
   z_score_threshold: 3.0
   min_samples: 10
   hard_limit_ms: 10000
+  hard_limit_risk_score: 0.95
+  z_score_risk_score: 0.65
+  expected_max_risk_score: 0.5
 
 usage_correlation:
   enabled: true
   history_messages_to_check: 3
   sensitive_mismatch_status: "escalate"
+  sensitive_risk_score: 0.75
+  normal_risk_score: 0.5
   tool_intents:
     calculator: ["calculate", "calc", "sum", "math", "add", "multiply", "divide", "compute", "count", "times"]
     web_search: ["search", "lookup", "find", "google", "browse", "web", "internet", "news"]
@@ -116,12 +121,16 @@ rate_limiter:
   max_calls_per_window: 20
   max_calls_per_tool: 10
   warn_ratio: 0.8
+  block_risk_score: 0.9
+  warn_risk_score: 0.5
 
 session_terminator:
   enabled: true
   warn_after_strikes: 2
   terminate_after_strikes: 3
   strike_window_seconds: 300
+  terminate_risk_score: 1.0
+  warn_risk_score: 0.7
 
 tool_integrity:
   enabled: true

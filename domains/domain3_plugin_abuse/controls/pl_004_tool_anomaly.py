@@ -59,6 +59,9 @@ class ToolAnomalyPL004(Control):
         z_threshold = float(config.get("z_score_threshold", 3.0))
         min_samples = int(config.get("min_samples", 10))
         hard_limit_ms = float(config.get("hard_limit_ms", 10000))
+        hard_limit_risk = float(config.get("hard_limit_risk_score", 0.95))
+        z_score_risk = float(config.get("z_score_risk_score", 0.65))
+        expected_max_risk = float(config.get("expected_max_risk_score", 0.5))
 
         checked_calls = []
         for idx, call in enumerate(tool_calls):
@@ -86,7 +89,7 @@ class ToolAnomalyPL004(Control):
                     control_id=self.control_id,
                     domain=self.domain,
                     status="block",
-                    risk_score=0.95,
+                    risk_score=hard_limit_risk,
                     reason=(
                         f"Tool '{tool_name}' execution time ({duration:.1f} ms) exceeded "
                         f"hard safety limit ({hard_limit_ms:.1f} ms)."
@@ -114,7 +117,7 @@ class ToolAnomalyPL004(Control):
                             control_id=self.control_id,
                             domain=self.domain,
                             status="warn",
-                            risk_score=0.65,
+                            risk_score=z_score_risk,
                             reason=(
                                 f"Execution time anomaly detected for tool '{tool_name}': "
                                 f"duration {duration:.1f} ms is {z_score:.2f} standard deviations "
@@ -138,7 +141,7 @@ class ToolAnomalyPL004(Control):
                     control_id=self.control_id,
                     domain=self.domain,
                     status="warn",
-                    risk_score=0.5,
+                    risk_score=expected_max_risk,
                     reason=(
                         f"Tool '{tool_name}' execution time ({duration:.1f} ms) exceeded "
                         f"expected baseline maximum ({float(expected_max):.1f} ms)."

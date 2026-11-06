@@ -15,11 +15,11 @@ from domains.domain3_plugin_abuse.controls.pl_006_rate_limiter import RateLimite
 from domains.domain3_plugin_abuse.controls.pl_007_session_terminator import SessionTerminatorPL007
 
 ALL_CONTROLS = [
+    SessionTerminatorPL007(),
     ToolWhitelistPL001(),
     CommandTrackingPL002(),
     SensitiveToolGatePL003(),
     ToolAnomalyPL004(),
     UsageCorrelationPL005(),
     RateLimiterPL006(),
-    SessionTerminatorPL007(),
 ]

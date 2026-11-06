@@ -47,6 +47,8 @@ class UsageCorrelationPL005(Control):
         tool_intents = config.get("tool_intents", {})
         n_history = int(config.get("history_messages_to_check", 3))
         sensitive_status = config.get("sensitive_mismatch_status", "escalate")
+        sensitive_risk = float(config.get("sensitive_risk_score", 0.75))
+        normal_risk = float(config.get("normal_risk_score", 0.5))
 
         # Sensitive tools list from sensitive_tool_gate policy or default high-impact tools
         sensitive_cfg = policy.get("sensitive_tool_gate", {}).get("sensitive_tools", {})
@@ -76,11 +78,11 @@ class UsageCorrelationPL005(Control):
                 matched_tools.append({"tool": tool_name, "matched_keyword": None, "note": "no_keywords_configured"})
                 continue
 
-            # Check if any keyword matches as a word or substring in the text corpus
+            # Check if any keyword matches as a distinct word in the text corpus
             matched_kw = None
             for kw in keywords:
                 pattern = r"\b" + re.escape(kw.lower()) + r"\b"
-                if re.search(pattern, text_corpus) or kw.lower() in text_corpus:
+                if re.search(pattern, text_corpus):
                     matched_kw = kw
                     break
 
@@ -94,7 +96,7 @@ class UsageCorrelationPL005(Control):
                         control_id=self.control_id,
                         domain=self.domain,
                         status=sensitive_status,
-                        risk_score=0.75,
+                        risk_score=sensitive_risk,
                         reason=(
                             f"Sensitive tool '{tool_name}' does not correlate with user prompt "
                             f"intent (no matching keywords: {keywords[:4]}). Human escalation required."
@@ -112,7 +114,7 @@ class UsageCorrelationPL005(Control):
                         control_id=self.control_id,
                         domain=self.domain,
                         status="warn",
-                        risk_score=0.5,
+                        risk_score=normal_risk,
                         reason=(
                             f"Tool '{tool_name}' does not match user prompt intent "
                             f"(no matching keywords: {keywords[:4]})."

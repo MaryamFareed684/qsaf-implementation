@@ -100,7 +100,7 @@ def run_scenario(
     verdicts = []
     t_start = time.perf_counter()
 
-    for key in ["pl001", "pl002", "pl003", "pl004", "pl005", "pl006", "pl007"]:
+    for key in ["pl007", "pl001", "pl002", "pl003", "pl004", "pl005", "pl006"]:
         ctrl = controls[key]
         v = ctrl.evaluate(ctx)
         log_verdict(session_id, v)
@@ -267,12 +267,13 @@ def main():
     avg_latency = sum(r["latency_ms"] for r in results) / len(results)
 
     print("\n" + "#" * 80)
-    print(" DOMAIN 3 EVALUATION METRICS REPORT")
+    print(" DOMAIN 3 EVALUATION METRICS REPORT (10 Demonstration Scenarios)")
     print("#" * 80)
     print(f"  Attack-Blocking Rate : {attack_block_rate:0.1f}% (target: >= 90%)")
     print(f"  False-Positive Rate  : {fp_rate:0.1f}% (target: <= 5%)")
     print(f"  Average Check Latency: {avg_latency:0.2f} ms (target: < 50 ms)")
-    print(f"  Controls Evaluated   : 7 / 7 Active Execution Controls")
+    print(f"  Controls Evaluated   : 7 / 7 Active Execution Controls (PL-007..PL-006)")
+    print("  Note: Metrics computed directly across the 10 diverse demo test cases.")
     print("#" * 80)
 
 

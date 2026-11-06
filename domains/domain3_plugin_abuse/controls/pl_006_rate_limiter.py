@@ -59,6 +59,8 @@ class RateLimiterPL006(Control):
         max_calls_total = int(config.get("max_calls_per_window", 20))
         max_calls_tool = int(config.get("max_calls_per_tool", 10))
         warn_ratio = float(config.get("warn_ratio", 0.8))
+        block_risk = float(config.get("block_risk_score", 0.9))
+        warn_risk = float(config.get("warn_risk_score", 0.5))
 
         session_id = ctx.session_id or "anonymous_session"
         now = time.time()
@@ -93,7 +95,7 @@ class RateLimiterPL006(Control):
                 control_id=self.control_id,
                 domain=self.domain,
                 status="block",
-                risk_score=0.9,
+                risk_score=block_risk,
                 reason=(
                     f"Session rate limit exceeded: {total_calls} tool calls in {window_seconds:.0f}s "
                     f"window (maximum allowed: {max_calls_total})."
@@ -113,7 +115,7 @@ class RateLimiterPL006(Control):
                     control_id=self.control_id,
                     domain=self.domain,
                     status="block",
-                    risk_score=0.9,
+                    risk_score=block_risk,
                     reason=(
                         f"Per-tool rate limit exceeded for tool '{tool_name}': {count} calls in "
                         f"{window_seconds:.0f}s window (maximum allowed: {max_calls_tool})."
@@ -134,7 +136,7 @@ class RateLimiterPL006(Control):
                 control_id=self.control_id,
                 domain=self.domain,
                 status="warn",
-                risk_score=0.5,
+                risk_score=warn_risk,
                 reason=(
                     f"Tool call volume approaching rate limit: {total_calls}/{max_calls_total} "
                     f"calls used ({int(total_calls / max_calls_total * 100)}%) in {window_seconds:.0f}s window."
@@ -153,7 +155,7 @@ class RateLimiterPL006(Control):
                     control_id=self.control_id,
                     domain=self.domain,
                     status="warn",
-                    risk_score=0.5,
+                    risk_score=warn_risk,
                     reason=(
                         f"Tool '{tool_name}' volume approaching per-tool rate limit: "
                         f"{count}/{max_calls_tool} calls used in {window_seconds:.0f}s window."
