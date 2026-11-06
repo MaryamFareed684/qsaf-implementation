@@ -7,6 +7,7 @@ for the whole system later.
 """
 
 from core.models import RequestContext, Verdict
+from core.logger import log_verdict
 from domains.domain1_prompt_injection.controls.pi_008_token_sanitizer import TokenSanitizerPI008
 from domains.domain1_prompt_injection.controls.pi_001_blacklist import BlacklistPI001
 from domains.domain1_prompt_injection.controls.pi_007_token_anomaly import TokenAnomalyPI007
@@ -18,11 +19,6 @@ from domains.domain1_prompt_injection.controls.pi_006_escalation_router import E
 
 
 def run_pipeline(prompt: str, session_id: str, verbose: bool = True):
-    """
-    Runs one prompt through the full Domain 1 pipeline.
-    Returns (final_verdict, stages) where stages is a list of dicts
-    describing what happened at each step, for use by the dashboard.
-    """
     stages = []
 
     if verbose:
@@ -38,6 +34,7 @@ def run_pipeline(prompt: str, session_id: str, verbose: bool = True):
     v_sanitize = sanitizer.evaluate(ctx)
     ctx.metadata["cleaned_prompt"] = v_sanitize.evidence["cleaned_prompt"]
     all_verdicts.append(v_sanitize)
+    log_verdict(session_id, v_sanitize)
     stages.append({"verdict": v_sanitize, "skipped": False})
     if verbose:
         print(f"  [PI-008] {v_sanitize.status.upper():8} | {v_sanitize.reason}")
@@ -46,6 +43,7 @@ def run_pipeline(prompt: str, session_id: str, verbose: bool = True):
     for control in [BlacklistPI001(), TokenAnomalyPI007()]:
         v = control.evaluate(ctx)
         all_verdicts.append(v)
+        log_verdict(session_id, v)
         stages.append({"verdict": v, "skipped": False})
         if verbose:
             print(f"  [{v.control_id}] {v.status.upper():8} | {v.reason}")
@@ -55,6 +53,7 @@ def run_pipeline(prompt: str, session_id: str, verbose: bool = True):
     gate = MultiPhaseValidatorPI005()
     v_gate = gate.evaluate(ctx)
     all_verdicts.append(v_gate)
+    log_verdict(session_id, v_gate)
     stages.append({"verdict": v_gate, "skipped": False})
     if verbose:
         print(f"  [PI-005] {v_gate.status.upper():8} | {v_gate.reason}")
@@ -64,6 +63,7 @@ def run_pipeline(prompt: str, session_id: str, verbose: bool = True):
         for control in [EmbeddingSimilarityPI003(), DynamicAnalysisPI002()]:
             v = control.evaluate(ctx)
             all_verdicts.append(v)
+            log_verdict(session_id, v)
             stages.append({"verdict": v, "skipped": False})
             if verbose:
                 print(f"  [{v.control_id}] {v.status.upper():8} | {v.reason}")
@@ -77,6 +77,7 @@ def run_pipeline(prompt: str, session_id: str, verbose: bool = True):
     ctx.metadata["prior_verdicts"] = all_verdicts
     aggregator = RiskScoringPI004()
     final_verdict = aggregator.evaluate(ctx)
+    log_verdict(session_id, final_verdict)
     stages.append({"verdict": final_verdict, "skipped": False, "is_final": True})
     if verbose:
         print(f"  [PI-004] FINAL   | status={final_verdict.status.upper()} risk={final_verdict.risk_score:.2f}")
@@ -86,6 +87,7 @@ def run_pipeline(prompt: str, session_id: str, verbose: bool = True):
     router = EscalationRouterPI006()
     v_escalate = router.evaluate(ctx)
     if v_escalate.status == "escalate":
+        log_verdict(session_id, v_escalate)
         stages.append({"verdict": v_escalate, "skipped": False})
         if verbose:
             print(f"  [PI-006] ESCALATED | {v_escalate.reason}")

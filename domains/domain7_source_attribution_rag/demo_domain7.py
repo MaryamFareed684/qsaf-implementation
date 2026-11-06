@@ -1,1 +1,174 @@
-# Domain 7 standalone demo — to be built when Domain 7 is implemented
+r"""
+Domain 7 standalone demo: Source Attribution & RAG Monitoring.
+
+Runs scripted RAG scenarios (question, retrieved docs, answer) through the
+seven Domain 7 controls only. No LLM, no network, no other domain needed.
+
+Run from the repo root:
+    py domains\domain7_source_attribution_rag\demo_domain7.py
+
+Every verdict is written to the shared audit log (logs/audit/qsaf_audit_log.jsonl).
+"""
+
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from core.logger import log_pipeline_result, log_verdict
+from core.models import PipelineResult, RequestContext, Verdict
+from domains.domain7_source_attribution_rag.controls import ALL_CONTROLS
+from domains.domain7_source_attribution_rag.controls.sa_007_auto_disable import (
+    is_rag_disabled,
+    reset_all,
+)
+from domains.domain7_source_attribution_rag.demo_data import KNOWLEDGE_BASE
+
+DOMAIN = "Domain 7: Source Attribution & RAG Monitoring"
+KB = {d["doc_id"]: d for d in KNOWLEDGE_BASE}
+_SEVERITY = {"pass": 0, "warn": 1, "escalate": 2, "block": 3}
+
+SHORT_NAMES = {
+    "SA-001": "Source Tracking",
+    "SA-002": "Response vs Docs",
+    "SA-003": "Hallucination Score",
+    "SA-004": "Retrieval Relevance",
+    "SA-005": "Attribution",
+    "SA-006": "Source Trust",
+    "SA-007": "Auto-Disable",
+}
+
+SCENARIOS = [
+    {"name": "Faithful and cited",
+     "question": "How many days do I have to ask for a refund?",
+     "doc_ids": ["kb-001", "kb-002"],
+     "answer": "You can request a refund within 14 days of delivery [kb-001]."},
+    {"name": "Wrong number (SA-002 cannot see it)",
+     "question": "How many days do I have to ask for a refund?",
+     "doc_ids": ["kb-001", "kb-002"],
+     "answer": "You can request a refund within 30 days of delivery [kb-001]."},
+    {"name": "Fabricated facts",
+     "question": "Where is the company headquarters?",
+     "doc_ids": ["kb-001", "kb-002"],
+     "answer": "Our headquarters are located in Berlin [kb-001]. We ship by drone on Sundays [kb-002]."},
+    {"name": "Correct but no citation",
+     "question": "How many days do I have to ask for a refund?",
+     "doc_ids": ["kb-001", "kb-002"],
+     "answer": "Refunds are allowed within 14 days of delivery."},
+    {"name": "Citation to a document that was not retrieved",
+     "question": "How many days do I have to ask for a refund?",
+     "doc_ids": ["kb-001", "kb-002"],
+     "answer": "Refunds are allowed within 14 days of delivery [kb-999]."},
+    {"name": "Faithful to a poisoned low-trust source",
+     "question": "How long do I have to request a refund?",
+     "doc_ids": ["kb-001", "kb-006"],
+     "answer": "Refunds are available for 90 days [kb-006]."},
+    {"name": "Irrelevant retrieval",
+     "question": "How do I reset my password?",
+     "doc_ids": ["kb-002", "kb-001"],
+     "answer": "Express shipping takes 1 to 2 business days [kb-002]."},
+]
+
+
+def build_ctx(session_id: str, scenario: dict) -> RequestContext:
+    return RequestContext(
+        session_id=session_id,
+        user_id="demo-user",
+        raw_prompt=scenario["question"],
+        retrieved_docs=[dict(KB[i]) for i in scenario["doc_ids"]],
+        agent_output=scenario["answer"],
+    )
+
+
+def aggregate(stages: list[Verdict]) -> Verdict:
+    """Local aggregate (worst status, maximum risk): domains may not import each other."""
+    worst = max(stages, key=lambda v: _SEVERITY[v.status])
+    blocked_by = worst.control_id if worst.status in ("block", "escalate") else None
+    return Verdict(
+        control_id="D7-AGG",
+        domain=DOMAIN,
+        status=worst.status,
+        risk_score=round(max(v.risk_score for v in stages), 3),
+        reason=f"Worst verdict: {worst.control_id} ({worst.status}).",
+        evidence={
+            "blocked_by": blocked_by,
+            "controls_flagged": [v.control_id for v in stages if v.status != "pass"],
+        },
+    )
+
+
+def run_pipeline(ctx: RequestContext, log: bool = True) -> tuple[Verdict, list[Verdict]]:
+    """Run all Domain 7 controls in order. Earlier verdicts are passed to later
+    controls through ctx.metadata["prior_verdicts"] (the RC-006 convention),
+    which the shared orchestrator does not do. No short-circuit: every control reports."""
+    stages: list[Verdict] = []
+    for control in ALL_CONTROLS:
+        ctx.metadata["prior_verdicts"] = list(stages)
+        verdict = control.safe_evaluate(ctx)
+        if log:
+            log_verdict(ctx.session_id, verdict)
+        stages.append(verdict)
+    final = aggregate(stages)
+    if log:
+        log_pipeline_result(PipelineResult(
+            session_id=ctx.session_id,
+            final_status=final.status,
+            overall_risk_score=final.risk_score,
+            verdicts=stages,
+            blocked_by=final.evidence["blocked_by"],
+        ))
+    return final, stages
+
+
+def print_result(ctx: RequestContext, final: Verdict, stages: list[Verdict]) -> None:
+    print(f'Question: "{ctx.raw_prompt}"')
+    print(f'Answer:   "{ctx.agent_output}"')
+    print(f"Retrieved: {', '.join(d['doc_id'] for d in ctx.retrieved_docs)}")
+    for v in stages:
+        print(f"  {v.control_id} ({SHORT_NAMES[v.control_id]}): {v.status.upper()} (risk={v.risk_score:.2f})")
+        if v.status != "pass":
+            print(f"     Reason: {v.reason}")
+    blocked = final.evidence["blocked_by"]
+    suffix = f", first blocking control: {blocked}" if blocked else ""
+    print(f"  => FINAL: {final.status.upper()} (risk={final.risk_score:.2f}){suffix}")
+
+
+def main() -> None:
+    reset_all()
+    print("=" * 70)
+    print(" DOMAIN 7 DEMO: Source Attribution & RAG Monitoring")
+    print("=" * 70)
+
+    print("\nPART 1: one scenario per session\n")
+    for i, scenario in enumerate(SCENARIOS, start=1):
+        print("-" * 70)
+        print(f"Scenario {i}: {scenario['name']}")
+        ctx = build_ctx(f"d7-demo-{i}", scenario)
+        final, stages = run_pipeline(ctx)
+        print_result(ctx, final, stages)
+
+    print("\n" + "=" * 70)
+    print("PART 2: repeated anomalies in ONE session disable the RAG pipeline (SA-007)")
+    print("=" * 70)
+    session_id = "d7-demo-attacker"
+    sequence = [SCENARIOS[2], SCENARIOS[2], SCENARIOS[2], SCENARIOS[0]]
+    for step, scenario in enumerate(sequence, start=1):
+        print("-" * 70)
+        print(f"Request {step} in session '{session_id}': {scenario['name']}")
+        if is_rag_disabled(session_id):
+            print("  [RAG DISABLED] The pipeline refuses to answer this session from RAG.")
+            continue
+        ctx = build_ctx(session_id, scenario)
+        final, stages = run_pipeline(ctx)
+        print_result(ctx, final, stages)
+        if is_rag_disabled(session_id):
+            print("  >> SA-007 has now disabled the RAG pipeline for this session.")
+
+    reset_all()
+    print("\nAll verdicts were written to logs/audit/qsaf_audit_log.jsonl")
+
+
+if __name__ == "__main__":
+    main()
