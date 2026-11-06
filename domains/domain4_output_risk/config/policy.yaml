@@ -145,11 +145,29 @@ or_002_hallucination:
   # Used only when ctx.retrieved_docs has content.
   grounding:
     enabled: true
+    # How claims are compared with the documents:
+    #   overlap -> word overlap. Fast, offline, no extra packages (DEFAULT, used by the tests).
+    #   nli     -> OPTIONAL stronger check with a small NLI model (needs sentence-transformers
+    #              and, the first time, internet to download the model). If it cannot load,
+    #              OR-002 falls back to overlap automatically and records that in the evidence.
+    method: overlap
     min_claim_words: 5          # shorter sentences are not checked
-    support_overlap: 0.50       # claim is "supported" if >= 50% of its content words are in the docs
+    support_overlap: 0.50       # overlap method: claim is "supported" if >= 50% of its content words are in the docs
     min_checkable_claims: 1
     unsupported_ratio_warn: 0.50
     unsupported_weight: 0.60
+    # Settings used only when method: nli
+    nli:
+      model_name: cross-encoder/nli-MiniLM2-L6-H768
+      # Order of the model's output columns. Check the model card if you change the model.
+      label_order: [contradiction, entailment, neutral]
+      entail_threshold: 0.50          # claim is SUPPORTED if P(entailment) >= this
+      contradiction_threshold: 0.50   # claim is CONTRADICTED if P(contradiction) >= this
+      top_k_passages: 3               # best passages checked per claim
+      passage_max_words: 80           # size of each evidence passage
+      max_claims: 10                  # speed limit: only the first N claims are verified
+      contradiction_weight: 0.75      # extra risk when a document directly contradicts a claim
+      max_risk: 0.85                  # risk cap when a contradiction is found (otherwise max_risk above)
 
   # Patterns run on the original reply text.
   signals:
@@ -195,6 +213,17 @@ or_003_watermark:
   #   warn    -> return a warning instead of a fingerprint
   on_missing_key: unkeyed
 
+  # OPTIONAL (off by default): detect a TOKEN-LEVEL watermark. Only possible when the model is
+  # self-hosted, its generation step uses bias_logits() from or_003, and the pipeline passes the
+  # generated token ids in ctx.metadata[metadata_key]. The key comes from an environment variable.
+  token_watermark:
+    enabled: false
+    metadata_key: domain4_token_ids
+    key_env_var: QSAF_TOKEN_WM_KEY
+    gamma: 0.25                 # share of tokens that are "green" by chance
+    z_threshold: 4.0            # how far above chance counts as "detected"
+    min_tokens: 25              # shorter texts are not judged
+
 # =====================================================================
 # OR-004: Sensitivity scoring of LLM responses (real-time)
 # Finds personal data and secrets in the reply and scores them 0-1.
@@ -206,6 +235,18 @@ or_004_sensitivity:
   block_threshold: 0.70
   category_cap: 0.95            # one category can never score above this
   max_samples: 3                # masked samples listed per category
+  # OPTIONAL (off by default): Named Entity Recognition with Microsoft Presidio.
+  # Finds person names and locations written as ordinary words (regex cannot).
+  # Needs:  python -m pip install presidio-analyzer   and a spaCy English model
+  #         (python -m spacy download en_core_web_lg). If missing, OR-004 uses regex only.
+  ner:
+    enabled: false
+    language: en
+    min_confidence: 0.60
+    entities:                   # Presidio entity name -> how we score it
+      PERSON:   {category: person_name, label: person name, weight: 0.25, mask: initial}
+      LOCATION: {category: location,    label: location,    weight: 0.10, mask: initial}
+
   # Rules run in this order. A later rule ignores text already matched by an earlier one.
   rules:
     - id: SN-01
@@ -277,11 +318,40 @@ or_005_risky_reroute:
     OR-004: 0.9
     OR-006: 0.5
     OR-007: 0.5
-  # What to do when a given detector says "block". Anything not listed uses default_block_action.
-  action_by_control:
-    OR-001: block               # drop the reply completely
-    OR-004: reroute             # replace the reply with the safe message
-  default_block_action: reroute
+  # Order of actions from MOST to LEAST severe. When a mandatory rule and the weighted score
+  # disagree, the more severe action wins.
+  action_priority: [escalate_to_moderator, block, reroute, allow_with_warning, allow]
+  default_block_action: reroute   # action when the weighted score alone reaches block_threshold
+
+  # MANDATORY RULES: hard rules that a critical risk cannot slip past by being averaged with
+  # harmless scores. A rule fires if EVERY condition it lists is true for some detector:
+  #   control: OR-0xx or "any" | status_in: [...] | min_risk: 0-1 | category_in: [...]
+  mandatory_rules:
+    - id: MR-01
+      description: A detector asked for a human decision
+      control: any
+      status_in: [escalate]
+      action: escalate_to_moderator
+    - id: MR-02
+      description: Jailbreak or illegal content must never be delivered or rerouted
+      control: OR-001
+      status_in: [block, escalate]
+      action: block
+    - id: MR-03
+      description: Secrets (keys, passwords, private keys) are always blocked
+      control: OR-004
+      category_in: [private_key, api_key, credential]
+      action: block
+    - id: MR-04
+      description: Sensitive personal data is replaced by the safe message
+      control: OR-004
+      status_in: [block]
+      action: reroute
+    - id: MR-05
+      description: Any other detector that says block is rerouted
+      control: any
+      status_in: [block]
+      action: reroute
   fallback_message: "I'm sorry, I can't share that response. A safer answer or a human reviewer will follow up."
 
 # =====================================================================
@@ -295,6 +365,16 @@ or_006_prompt_response:
   stopwords: *stopwords
   min_prompt_keywords: 2        # fewer keywords than this: not enough to judge
   min_reply_words: 4            # very short replies are not judged
+  # How relevance is measured:
+  #   keyword   -> shared key words (DEFAULT, offline, no extra packages)
+  #   embedding -> meaning similarity with a sentence-transformers model (understands paraphrases)
+  #   hybrid    -> on-topic if EITHER signal says so (fewest false alarms)
+  # If the model cannot load, OR-006 falls back to keyword automatically.
+  method: keyword
+  embedding:
+    model_name: sentence-transformers/all-MiniLM-L6-v2
+    ok_similarity: 0.35         # cosine similarity at or above this counts as on-topic
+    max_chars: 2000             # only the start of long texts is embedded
   ok_overlap: 0.20              # coverage at or above this is fine
   warn_threshold: 0.30
   max_risk: 0.60
@@ -319,6 +399,16 @@ or_007_tone_deviation:
   deviation_max_weight: 0.80
   warn_threshold: 0.35
   block_threshold: 0.90
+  # OPTIONAL (off by default): emotion classifier (transformers). Catches aggression that uses no
+  # listed word. If the model cannot load, OR-007 keeps the word-list result.
+  emotion:
+    enabled: false
+    model_name: j-hartmann/emotion-english-distilroberta-base
+    min_probability: 0.60       # an emotion counts only at or above this probability
+    risky_emotions: {anger: 0.55, disgust: 0.40}   # emotion -> risk weight
+    shift_threshold: 0.50       # rise in risky emotion versus the agent's earlier replies
+    shift_weight: 0.40
+    max_history_replies: 5      # speed limit: how many earlier replies are classified
   assistant_roles: [assistant, agent, bot, ai]
   shouting:
     min_words: 5
