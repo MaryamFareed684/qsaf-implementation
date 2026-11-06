@@ -40,7 +40,7 @@ tool_whitelist:
 command_tracking:
   enabled: true
   dangerous_patterns:
-    - "rm\\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r|--recursive|--force)"
+    - "\\brm\\s+(-[a-zA-Z]*[rf][a-zA-Z]*|--recursive|--force)"
     - "DROP\\s+(TABLE|DATABASE|SCHEMA)"
     - "curl\\s+.*\\|\\s*(ba)?sh"
     - "wget\\s+.*\\|\\s*(ba)?sh"
@@ -52,9 +52,9 @@ command_tracking:
     - "format\\s+[c-zC-Z]:"
   suspicious_patterns:
     - "&&"
-    - ";"
+    - ";\\s*(rm|curl|wget|chmod|cat|nc|ncat|bash|sh|python|powershell|whoami|ssh|scp)\\b(?=\\s+(-|/|~|\\.{1,2}/|https?://|\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})|\\s*[\"']|\\s*$)"
     - "\\|\\|"
-    - "\\|"
+    - "\\|\\s*(sh|bash|nc|ncat|python|powershell)\\b(?=\\s+(-|/|~|\\.{1,2}/|https?://|\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})|\\s*[\"']|\\s*$)"
     - "powershell\\s+-enc"
     - "base64\\s+(-d|--decode)"
   redact_patterns:
@@ -151,4 +151,3 @@ information_flow:
   privileged_sinks: ["send_email", "execute_code", "make_payment", "write_file"]
   overlap_min_words: 4
   memory_window_seconds: 120
-
