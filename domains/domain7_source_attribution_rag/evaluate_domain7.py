@@ -1,17 +1,21 @@
 r"""
-Measured evaluation of Domain 7 on the labelled set in eval_set.py.
+Measured evaluation of Domain 7 on a labelled set.
 
-Run from the repo root:
-    py domains\domain7_source_attribution_rag\evaluate_domain7.py
+  py domains\domain7_source_attribution_rag\evaluate_domain7.py                  (dev set)
+  py domains\domain7_source_attribution_rag\evaluate_domain7.py --set test       (fresh test set)
+  add --repeats 3 (default) to measure latency over several passes
 
-Classification covers SA-001..SA-006 (per answer). SA-007 is session-level and
-covered by the functional tests. Two decision rules are reported:
+Classification covers SA-001..SA-006 (per answer). SA-007 is session-level and covered by
+the functional tests. Two decision rules are reported:
   warn_or_block: flagged when the final status is warn or block
   block_only:    flagged only when the final status is block
-Latency is measured per control after a warm-up run (model loading excluded).
+Latency is measured per control after a warm-up run (model loading excluded) and reported
+over all passes.
 """
 
+import argparse
 import csv
+import importlib
 import statistics
 import sys
 import time
@@ -24,10 +28,15 @@ if str(ROOT) not in sys.path:
 
 from core.models import RequestContext
 from domains.domain7_source_attribution_rag.controls import ALL_CONTROLS
-from domains.domain7_source_attribution_rag.eval_set import EVAL_KB, EXAMPLES, KIND_ORDER
 
 CHECKS = ALL_CONTROLS[:6]
 SEVERITY = {"pass": 0, "warn": 1, "escalate": 2, "block": 3}
+SETS = {
+    "dev": ("domains.domain7_source_attribution_rag.eval_set", "evaluation_report.md",
+            "evaluation_details.csv", "DEV set (thresholds were calibrated on it)"),
+    "test": ("domains.domain7_source_attribution_rag.eval_set_test", "evaluation_report_test.md",
+             "evaluation_details_test.csv", "FRESH TEST set (never used for tuning)"),
+}
 
 
 def pct(a, b):
@@ -39,10 +48,10 @@ def pctl(values, q):
     return s[min(len(s) - 1, int(round(q * (len(s) - 1))))]
 
 
-def run_one(example, session_id):
+def run_one(example, session_id, kb):
     ctx = RequestContext(
         session_id=session_id, user_id="eval", raw_prompt=example["question"],
-        retrieved_docs=[dict(EVAL_KB[i]) for i in example["doc_ids"]],
+        retrieved_docs=[dict(kb[i]) for i in example["doc_ids"]],
         agent_output=example["answer"],
     )
     verdicts, timings, prior = {}, {}, []
@@ -63,20 +72,34 @@ def table(headers, rows):
 
 
 def main():
-    run_one(EXAMPLES[0], "eval-warmup")          # load the model before timing
-    results = []
-    for i, ex in enumerate(EXAMPLES):
-        verdicts, timings = run_one(ex, f"eval-{i}")
-        worst = max(verdicts.values(), key=lambda v: SEVERITY[v.status]).status
-        results.append({
-            **ex, "verdicts": verdicts, "timings": timings, "final": worst,
-            "any": worst != "pass", "blk": worst == "block",
-            "flagged": [c for c, v in verdicts.items() if v.status != "pass"],
-        })
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--set", choices=list(SETS), default="dev")
+    parser.add_argument("--repeats", type=int, default=3)
+    args = parser.parse_args()
+    module_name, report_name, details_name, label = SETS[args.set]
+    mod = importlib.import_module(module_name)
+    kb, examples, kind_order = mod.EVAL_KB, mod.EXAMPLES, mod.KIND_ORDER
+
+    run_one(examples[0], "eval-warmup", kb)            # load the models before timing
+    timings = {c.control_id: [] for c in CHECKS}
+    totals, results = [], []
+    for rep in range(max(1, args.repeats)):
+        results = []
+        for i, ex in enumerate(examples):
+            verdicts, tm = run_one(ex, f"eval-{rep}-{i}", kb)
+            for cid, ms in tm.items():
+                timings[cid].append(ms)
+            totals.append(sum(tm.values()))
+            worst = max(verdicts.values(), key=lambda v: SEVERITY[v.status]).status
+            results.append({
+                **ex, "verdicts": verdicts, "final": worst,
+                "any": worst != "pass", "blk": worst == "block",
+                "flagged": [c for c, v in verdicts.items() if v.status != "pass"],
+            })
 
     ok = [r for r in results if r["label"] == "ok"]
     bad = [r for r in results if r["label"] == "bad"]
-    lines = ["# Domain 7 evaluation", "",
+    lines = ["# Domain 7 evaluation", "", f"Set: {label}", "",
              f"Examples: {len(results)} ({len(ok)} acceptable, {len(bad)} faulty). "
              "Controls SA-001 to SA-006; SA-007 is session-level and covered by functional tests.", ""]
 
@@ -93,7 +116,7 @@ def main():
 
     lines += ["", "## By example kind", ""]
     rows = []
-    for kind in KIND_ORDER:
+    for kind in kind_order:
         group = [r for r in results if r["kind"] == kind]
         hit = ""
         if group[0]["label"] == "bad":
@@ -103,16 +126,15 @@ def main():
                      f"{sum(r['blk'] for r in group)}/{len(group)}", hit])
     lines += table(["kind", "label", "n", "flagged (warn or block)", "flagged (block)", "expected control flagged"], rows)
 
-    lines += ["", "## By control (latency in milliseconds after warm-up)", ""]
+    lines += ["", f"## By control (latency in milliseconds, {max(1, args.repeats)} passes after warm-up)", ""]
     rows = []
     for c in CHECKS:
         cid = c.control_id
         own = [r for r in bad if r["expected_control"] == cid]
-        ms = [r["timings"][cid] for r in results]
+        ms = timings[cid]
         rows.append([cid, f"{sum(cid in r['flagged'] for r in ok)}/{len(ok)}",
                      f"{sum(cid in r['flagged'] for r in own)}/{len(own)}" if own else "-",
                      f"{statistics.mean(ms):.1f}", f"{statistics.median(ms):.1f}", f"{pctl(ms, 0.95):.1f}"])
-    totals = [sum(r["timings"].values()) for r in results]
     rows.append(["pipeline", "-", "-", f"{statistics.mean(totals):.1f}",
                  f"{statistics.median(totals):.1f}", f"{pctl(totals, 0.95):.1f}"])
     lines += table(["control", "false alarms on acceptable answers", "caught its own failure kind",
@@ -130,14 +152,14 @@ def main():
 
     report = "\n".join(lines) + "\n"
     print(report)
-    (HERE / "evaluation_report.md").write_text(report, encoding="utf-8")
-    with open(HERE / "evaluation_details.csv", "w", encoding="utf-8", newline="") as f:
+    (HERE / report_name).write_text(report, encoding="utf-8")
+    with open(HERE / details_name, "w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
         w.writerow(["id", "kind", "label", "expected_control", "final", "flagged_controls", "question", "answer"])
         for r in results:
             w.writerow([r["id"], r["kind"], r["label"], r["expected_control"], r["final"],
                         "|".join(r["flagged"]), r["question"], r["answer"]])
-    print("Wrote evaluation_report.md and evaluation_details.csv")
+    print(f"Wrote {report_name} and {details_name}")
 
 
 if __name__ == "__main__":

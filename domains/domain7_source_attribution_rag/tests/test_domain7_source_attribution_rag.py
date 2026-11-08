@@ -232,7 +232,7 @@ def test_sa003_flags_negation_and_antonym_conflicts_but_not_agreement():
         "best_doc_sentence": "The warranty does not cover water damage or accidental drops.",
         "supported": True, "max_similarity": 0.9, "best_doc_id": "kb-003"}])]
     v = BY_ID["SA-003"].safe_evaluate(neg)
-    assert v.status == "warn" and v.evidence["conflicts"][0]["kind"] == "negation"
+    assert v.status == "pass" and v.evidence["conflicts"][0]["kind"] == "negation"  # recorded as evidence; alone it stays below the warn threshold
 
     opp = RequestContext("t", "u", "q", retrieved_docs=[dict(KB["kb-004"])], agent_output="Support is open on holidays [kb-004].")
     opp.metadata["prior_verdicts"] = [_sa2_evidence([{
@@ -262,3 +262,14 @@ def test_refusal_cannot_hide_an_invented_claim():
                          agent_output="I could not find the exact fee, but it is 40 dollars [kb-001].")
     verdicts = run_checks(ctx)
     assert verdicts["SA-003"].status != "pass" and "40" in verdicts["SA-003"].evidence["ungrounded_numbers"]
+
+def test_sa003_conflict_plus_another_signal_warns():
+    ctx = RequestContext("t", "u", "q", retrieved_docs=[dict(KB["kb-003"])],
+                         agent_output="The warranty covers water damage for 99 days [kb-003].")
+    ctx.metadata["prior_verdicts"] = [_sa2_evidence([{
+        "text": "The warranty covers water damage for 99 days.",
+        "best_doc_sentence": "The warranty does not cover water damage or accidental drops.",
+        "supported": True, "max_similarity": 0.9, "best_doc_id": "kb-003"}])]
+    v = BY_ID["SA-003"].safe_evaluate(ctx)
+    assert v.status == "warn" and v.risk_score == 0.6
+    assert v.evidence["ungrounded_numbers"] == ["99"] and len(v.evidence["conflicts"]) == 1
