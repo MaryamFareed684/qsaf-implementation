@@ -36,26 +36,31 @@ STATUS_COLORS = {
 
 CONTROL_SUMMARY = {
     "SA-001": "Every retrieved document has a doc_id and a source; the source list goes to the audit log.",
-    "SA-002": "Each answer sentence is compared with the retrieved sentences (embeddings, measured threshold 0.55).",
-    "SA-003": "Hallucination score: unsupported sentences from SA-002 plus numbers/names found in no document.",
-    "SA-004": "Are the retrieved documents relevant to the question at all? (bad retrieval, measured threshold 0.40)",
+    "SA-002": "Each answer sentence is compared with the retrieved sentences (embeddings with a calibrated threshold; citation markers removed; refusals skipped).",
+    "SA-003": "Hallucination score: unsupported sentences from SA-002 plus numbers/names found in no cited document and contradictions with the source wording.",
+    "SA-004": "Are the retrieved documents relevant to the question at all? (bad retrieval; question-to-passage model with a calibrated threshold)",
     "SA-005": "The answer must cite documents that were really retrieved. Fake citation = block, no citation = warn.",
     "SA-006": "Trust level of the sources the answer relies on. Untrusted source cited = block.",
-    "SA-007": "Session level: repeated anomalous requests disable the RAG pipeline until an operator resets it.",
+    "SA-007": "Session level: repeated blocked requests disable the RAG pipeline until an operator resets it.",
 }
 
 KNOWN_LIMITATIONS = [
-    "SA-002 measures topical similarity, not agreement: a negation error ('covers' instead of "
-    "'does not cover') is not caught (tested as a known gap).",
-    "SA-003's number check pools numbers across all retrieved documents, so a wrong number that "
-    "appears in any of them is not caught. Numbers written as words are not compared.",
-    "The thresholds (0.55 and 0.40) were measured on a small set of short documents and are provisional "
-    "until the labelled evaluation.",
-    "An honest 'I could not find that in the documents' answer is flagged by SA-002 (tested false positive).",
-    "A faithful answer from a trusted but wrong document is not detectable by any Domain 7 control.",
-    "SA-007 keeps its state in memory only (lost on restart), per process, and is not thread-safe.",
+    "SA-002 compares meaning, not facts: a wrong number or a negation can still look supported, "
+    "so SA-003 adds a number/name check and a contradiction heuristic.",
+    "The contradiction heuristic (negation and antonym pairs) is deliberately weak: on its own it only "
+    "records evidence, because as a warning it raised false alarms on correct paraphrases. Negation "
+    "errors are therefore mostly not flagged (0 of 3 in the fresh test set).",
+    "SA-003's number check uses the cited document, so a wrong number that also appears elsewhere in "
+    "the same document is not caught. Numbers written as words are not compared.",
+    "SA-004 is the weakest control: its model and threshold were calibrated on one small collection, "
+    "and it raised 3 false alarms on 25 acceptable answers in the fresh test set.",
+    "The refusal exemption is a phrase list: unusual wording is not recognised as a refusal, and a "
+    "refusal followed by 'but ...' is checked as a normal claim.",
+    "A faithful answer from a trusted but wrong document cannot be detected by any Domain 7 control.",
+    "SA-007 keeps its state in memory only (lost on restart), per process, and counts only blocked requests.",
     "The shared orchestrator does not pass earlier verdicts to later controls, so Domain 7 uses its own "
     "runner (run_pipeline) for SA-003 and SA-007.",
+    "All evaluation answers were written by hand, not produced by a real LLM.",
 ]
 
 
