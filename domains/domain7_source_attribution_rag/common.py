@@ -96,3 +96,11 @@ def polarity_conflict(answer_sentence: str, doc_sentence: str, antonym_pairs) ->
         if (x in sa and x not in sd and y in sd) or (y in sa and y not in sd and x in sd):
             return f"{x}/{y}"
     return None
+
+RAG_FLAG = "domain7_rag_used"
+
+
+def rag_not_used(ctx) -> bool:
+    """True when the caller explicitly declared that this request did not use RAG (plain chat):
+    set ctx.metadata["domain7_rag_used"] = False. If the key is absent, Domain 7 runs as usual."""
+    return ctx.metadata.get(RAG_FLAG) is False

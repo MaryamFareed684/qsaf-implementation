@@ -50,11 +50,6 @@ def test_domain7_registers_and_runs_through_orchestrator():
                    for v in result.verdicts)
 
 
-@pytest.mark.xfail(
-    reason="The orchestrator does not fill ctx.metadata['prior_verdicts'], so SA-003 and "
-           "SA-007 warn even for a good answer. Needs a team decision on core/.",
-    strict=False,
-)
 def test_good_answer_passes_cleanly_through_orchestrator():
     result = _orchestrator().run_layer("egress", _good_ctx("it-d7-clean"))
     assert result.final_status == "pass"

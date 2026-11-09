@@ -242,3 +242,19 @@ Files: `controls/`, `common.py`, `config/policy.yaml`, `demo_data.py`, `demo_dom
 `evaluation_report*.md`, `calibration_report.txt`, `tests/`.
 
 Manual check: the demo was tried by hand with the sample documents (normal answer, each tamper mode, an untrusted source, a question the document cannot answer, and repeated blocked requests) and behaved as designed. This is a manual check, not a measurement.
+
+
+## 10. Shared pipeline integration
+
+The open questions in section 7 were resolved in the shared files (backwards compatible):
+
+- `core/orchestrator.py` sets `ctx.metadata["prior_verdicts"]` before every control (verdicts of the
+  controls that already ran in the same layer), so SA-003, SA-007 and Domain 2's RC-006 now work through
+  the orchestrator.
+- `core/control_base.py` has `always_run = False`. After a block the orchestrator skips the remaining
+  controls of the layer except those with `always_run = True`. SA-007 sets it so that it still counts
+  blocked requests.
+- `ctx.metadata["domain7_rag_used"] = False` marks a request as plain chat: all seven controls pass with
+  "RAG not used". If the key is absent, behaviour is unchanged.
+- Domain 7 is registered in `tests/integration/test_end_to_end.py` (5 domains, 14 egress controls),
+  `demo/demo_agent.py` and `config/global_policy.yaml`. `pypdf` is in `requirements.txt` for PDF uploads.

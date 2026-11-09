@@ -18,6 +18,7 @@ import re
 
 from core.control_base import Control
 from core.models import RequestContext, Verdict
+from domains.domain7_source_attribution_rag import common
 from core.policy_loader import load_domain_policy
 
 DOMAIN_FOLDER = "domain7_source_attribution_rag"
@@ -39,6 +40,8 @@ class SourceTrustSA006(Control):
         )
 
     def evaluate(self, ctx: RequestContext) -> Verdict:
+        if common.rag_not_used(ctx):
+            return self._verdict("pass", 0.0, "RAG not used for this request; Domain 7 does not apply.", {"rag_used": False})
         full = load_domain_policy(DOMAIN_FOLDER)
         policy = full.get("source_trust")
         if not policy:

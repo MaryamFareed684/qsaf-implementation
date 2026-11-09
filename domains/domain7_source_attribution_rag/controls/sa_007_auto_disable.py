@@ -21,6 +21,7 @@ from collections import deque
 
 from core.control_base import Control
 from core.models import RequestContext, Verdict
+from domains.domain7_source_attribution_rag import common
 from core.policy_loader import load_domain_policy
 
 DOMAIN_FOLDER = "domain7_source_attribution_rag"
@@ -44,6 +45,7 @@ class AutoDisableSA007(Control):
     control_id = "SA-007"
     domain = "Domain 7: Source Attribution & RAG Monitoring"
     layer = "egress"
+    always_run = True  # monitor: must still see requests that other Domain 7 controls blocked
 
     def _verdict(self, status, risk, reason, evidence=None):
         return Verdict(
@@ -56,6 +58,8 @@ class AutoDisableSA007(Control):
         )
 
     def evaluate(self, ctx: RequestContext) -> Verdict:
+        if common.rag_not_used(ctx):
+            return self._verdict("pass", 0.0, "RAG not used for this request; Domain 7 does not apply.", {"rag_used": False})
         policy = load_domain_policy(DOMAIN_FOLDER).get("auto_disable")
         if not policy:
             return self._verdict("warn", 0.5, "Missing 'auto_disable' section in policy.yaml.")

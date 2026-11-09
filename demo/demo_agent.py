@@ -20,11 +20,12 @@ from domains.domain1_prompt_injection.controls import ALL_CONTROLS as D1
 from domains.domain2_role_context.controls import ALL_CONTROLS as D2
 from domains.domain3_plugin_abuse.controls import ALL_CONTROLS as D3
 from domains.domain4_output_risk.controls import ALL_CONTROLS as D4
+from domains.domain7_source_attribution_rag.controls import ALL_CONTROLS as D7
 
 
 def build_qsaf_orchestrator() -> Orchestrator:
     orch = Orchestrator()
-    for control in D1 + D2 + D3 + D4:
+    for control in D1 + D2 + D3 + D4 + D7:
         orch.register(control)
     return orch
 
@@ -69,6 +70,7 @@ def run_demo():
             print(f"  -> BLOCKED by {execution_result.blocked_by}. Tool use rejected.")
             continue
 
+        ctx.metadata["domain7_rag_used"] = False  # this toy agent does not retrieve documents
         ctx.agent_output = fake_llm_response(user_input)
 
         egress_result = orchestrator.run_layer("egress", ctx)

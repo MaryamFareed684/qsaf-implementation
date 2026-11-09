@@ -4,6 +4,7 @@ enabled_domains:
   - domain2_role_context
   - domain3_plugin_abuse
   - domain4_output_risk
+  - domain7_source_attribution_rag
 
 # Overall thresholds used by the risk engine / dashboard, not by individual
 # controls (those load their OWN thresholds from their own policy.yaml)
