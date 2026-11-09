@@ -25,7 +25,7 @@ hallucination_score:
   enabled: true
   weight_text: 0.6            # weight of SA-002's unsupported-sentence ratio
   step_ungrounded_fact: 0.4   # added per number or name found in no cited document
-  step_conflict: 0.4          # added per sentence that contradicts its source sentence
+  step_conflict: 0.2          # option A: a lone conflict stays below warn_threshold (fewer false alarms on paraphrases)
   warn_threshold: 0.25
   block_threshold: 0.7
   missing_input_risk: 0.5
@@ -94,6 +94,19 @@ source_trust:
     donations.pdf: high
     anonymous_blog.txt: untrusted
     social_media_post.txt: untrusted
+    bike_rental.pdf: high
+    pricing.pdf: high
+    safety_rules.pdf: high
+    app_guide.pdf: high
+    station_map.html: medium
+    lost_property.pdf: high
+    accounts.pdf: high
+    repairs.pdf: high
+    rumour_forum.txt: untrusted
+    anonymous_tweet.txt: untrusted
+    upload_trusted: high
+    upload_neutral: medium
+    upload_untrusted: untrusted
   level_status:
     high: pass
     medium: pass
