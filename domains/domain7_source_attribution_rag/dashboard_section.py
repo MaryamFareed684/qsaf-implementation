@@ -6,11 +6,14 @@ Everything Domain 7 needs lives in this domain's folder; the shared file only
 imports render_domain7_tab() and calls it inside its tab.
 """
 
+import hashlib
 import html
+import os
 
 import streamlit as st
 
 from core.models import RequestContext
+from domains.domain7_source_attribution_rag import live_rag
 from domains.domain7_source_attribution_rag.controls.sa_007_auto_disable import (
     is_rag_disabled,
     reset_session,
@@ -112,7 +115,7 @@ def _session_bar():
     return disabled
 
 
-def render_domain7_tab():
+def _render_scripted_tab():
     st.header("Domain 7: Source Attribution & RAG Monitoring")
     st.caption(
         "Pick a prepared RAG scenario or write your own answer, then watch it pass through the 7 controls. "
@@ -171,3 +174,121 @@ def render_domain7_tab():
     with st.expander("Known limitations (each one is a documented, tested case)"):
         for limitation in KNOWN_LIMITATIONS:
             st.markdown(f"- {limitation}")
+
+
+# ---------------- live demo: upload a document, ask a question, Groq answers ----------------
+
+LIVE_SESSION_ID = "dashboard-domain7-live"
+TRUST_CHOICES = {
+    "Trusted source (for example an official policy)": "upload_trusted",
+    "Unverified source": "upload_neutral",
+    "Untrusted source (for example an anonymous forum post)": "upload_untrusted",
+}
+
+
+def _live_status():
+    if os.environ.get("GROQ_API_KEY"):
+        st.success("GROQ_API_KEY is set in this terminal (the key itself is never shown).")
+    else:
+        st.error("GROQ_API_KEY is not set in the terminal that started Streamlit, so Groq cannot be called.")
+    st.text_input("Groq model", value=live_rag.default_model(), key="d7live_model")
+    if st.button("List available Groq models", key="d7live_models"):
+        try:
+            st.write(live_rag.list_models())
+        except live_rag.LiveRagError as exc:
+            st.error(str(exc))
+
+
+def _live_session_bar():
+    disabled = is_rag_disabled(LIVE_SESSION_ID)
+    left, right = st.columns([3, 1])
+    with left:
+        if disabled:
+            st.error("RAG pipeline is DISABLED for this live session (SA-007).")
+        else:
+            st.success("RAG pipeline is active for this live session.")
+    with right:
+        if st.button("Reset session", key="d7live_reset"):
+            reset_session(LIVE_SESSION_ID)
+            st.rerun()
+    return disabled
+
+
+def _run_live(uploaded, source_label, question, top_k, tamper_mode):
+    data = uploaded.getvalue()
+    key = hashlib.sha1(data).hexdigest() + source_label
+    index = st.session_state.get("d7live_index")
+    if not index or index["key"] != key:
+        with st.spinner("Reading the document and embedding its passages..."):
+            text = live_rag.extract_text(uploaded.name, data)
+            chunks, truncated = live_rag.limit_chunks(live_rag.chunk_text(text))
+            index = {"key": key, "chunks": chunks, "emb": live_rag.embed_chunks(chunks), "truncated": truncated}
+        st.session_state["d7live_index"] = index
+    if index["truncated"]:
+        st.warning(f"The document is long: only the first {live_rag.MAX_CHUNKS} passages are used.")
+
+    docs = live_rag.retrieve(question, index["chunks"], index["emb"], source_label, k=top_k)
+    with st.spinner("Asking Groq..."):
+        raw = live_rag.ask_groq(live_rag.build_messages(question, docs),
+                                model=st.session_state.get("d7live_model") or live_rag.default_model())
+    answer = live_rag.tamper_answer(raw, tamper_mode)
+
+    st.markdown("**Answer written by Groq**")
+    st.text(raw)
+    if answer != raw:
+        st.markdown("**Answer after tampering (this is what the controls check)**")
+        st.text(answer)
+    with st.expander(f"Retrieved passages ({len(docs)})"):
+        for d in docs:
+            st.markdown(f"**{d['doc_id']}** (similarity {d['score']})")
+            st.text(d["text"])
+
+    ctx = RequestContext(session_id=LIVE_SESSION_ID, user_id="dashboard-user", raw_prompt=question,
+                         retrieved_docs=docs, agent_output=answer)
+    final_verdict, stages = run_pipeline(ctx)
+    _render_trace(final_verdict, stages)
+    footer = next((v.evidence.get("trust_footer") for v in stages if v.control_id == "SA-006"), None)
+    if footer:
+        st.caption(footer)
+    if is_rag_disabled(LIVE_SESSION_ID):
+        st.error("SA-007 has now disabled the RAG pipeline for this live session.")
+
+
+def _render_live_tab():
+    st.header("Live demo: your document, a real LLM, Domain 7 checking the answer")
+    st.caption(
+        "Upload a PDF or text file and ask a question about it. The best-matching passages are retrieved, "
+        "Groq writes an answer that must cite them (for example [up-2]), and the seven Domain 7 controls "
+        "check that answer. 'Tamper with the answer' simulates a corrupted or manipulated LLM."
+    )
+    _live_status()
+    disabled = _live_session_bar()
+
+    uploaded = st.file_uploader("Document (PDF or TXT)", type=["pdf", "txt"], key="d7live_file")
+    trust_label = st.radio("How much do you trust this document?", list(TRUST_CHOICES.keys()), key="d7live_trust")
+    question = st.text_input("Your question about the document", key="d7live_question")
+    top_k = st.slider("Passages to retrieve", 1, 5, 3, key="d7live_k")
+    tamper_label = st.selectbox("Tamper with the answer (simulate an attack)",
+                                list(live_rag.TAMPER_LABELS.keys()), key="d7live_tamper")
+
+    if st.button("Ask and check", type="primary", key="d7live_run"):
+        if disabled:
+            st.warning("RAG is disabled for this live session. Press 'Reset session' first.")
+        elif uploaded is None:
+            st.warning("Please upload a document first.")
+        elif not question.strip():
+            st.warning("Please type a question.")
+        else:
+            try:
+                _run_live(uploaded, TRUST_CHOICES[trust_label], question.strip(), int(top_k),
+                          live_rag.TAMPER_LABELS[tamper_label])
+            except live_rag.LiveRagError as exc:
+                st.error(str(exc))
+
+
+def render_domain7_tab():
+    scripted, live = st.tabs(["Scripted scenarios", "Live demo: upload a document + Groq"])
+    with scripted:
+        _render_scripted_tab()
+    with live:
+        _render_live_tab()

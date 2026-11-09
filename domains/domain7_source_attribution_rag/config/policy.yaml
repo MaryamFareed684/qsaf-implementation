@@ -104,6 +104,9 @@ source_trust:
     repairs.pdf: high
     rumour_forum.txt: untrusted
     anonymous_tweet.txt: untrusted
+    upload_trusted: high
+    upload_neutral: medium
+    upload_untrusted: untrusted
   level_status:
     high: pass
     medium: pass

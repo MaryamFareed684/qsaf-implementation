@@ -231,7 +231,14 @@ embedding controls (SA-002 and SA-004); SA-001, 003, 005 and 006 take under 1 ms
 
 ## 8. Running it
 
+    py domains\domain7_source_attribution_rag\demo_domain7.py
+    py -m streamlit run dashboard/streamlit_app.py --server.fileWatcherType none
+    py -m pytest domains/domain7_source_attribution_rag/tests/ -q
+    py domains\domain7_source_attribution_rag\calibrate_domain7.py          (report only; --apply writes policy.yaml)
+
 
 Files: `controls/`, `common.py`, `config/policy.yaml`, `demo_data.py`, `demo_domain7.py`,
 `dashboard_section.py`, `eval_set.py`, `eval_set_test.py`, `evaluate_domain7.py`, `calibrate_domain7.py`,
 `evaluation_report*.md`, `calibration_report.txt`, `tests/`.
+
+Manual check: the demo was tried by hand with the sample documents (normal answer, each tamper mode, an untrusted source, a question the document cannot answer, and repeated blocked requests) and behaved as designed. This is a manual check, not a measurement.
