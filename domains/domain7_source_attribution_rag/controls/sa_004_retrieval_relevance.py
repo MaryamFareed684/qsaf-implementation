@@ -38,6 +38,8 @@ class RetrievalRelevanceSA004(Control):
         )
 
     def evaluate(self, ctx: RequestContext) -> Verdict:
+        if common.rag_not_used(ctx):
+            return self._verdict("pass", 0.0, "RAG not used for this request; Domain 7 does not apply.", {"rag_used": False})
         full = common.load_policy()
         policy = full.get("retrieval_relevance")
         if not policy:

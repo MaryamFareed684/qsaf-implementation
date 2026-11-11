@@ -9,6 +9,7 @@ shared logger records it in the audit log.
 
 from core.control_base import Control
 from core.models import RequestContext, Verdict
+from domains.domain7_source_attribution_rag import common
 from core.policy_loader import load_domain_policy
 
 DOMAIN_FOLDER = "domain7_source_attribution_rag"
@@ -30,6 +31,8 @@ class SourceTrackingSA001(Control):
         )
 
     def evaluate(self, ctx: RequestContext) -> Verdict:
+        if common.rag_not_used(ctx):
+            return self._verdict("pass", 0.0, "RAG not used for this request; Domain 7 does not apply.", {"rag_used": False})
         policy = load_domain_policy(DOMAIN_FOLDER).get("source_tracking")
         if not policy:
             return self._verdict("warn", 0.5, "Missing 'source_tracking' section in policy.yaml.")
