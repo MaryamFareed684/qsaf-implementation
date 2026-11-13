@@ -6,3 +6,9 @@ logs/audit/*.jsonl
 venv/
 *.egg-info/
 .DS_Store
+
+# Personal Copilot files (local only)
+.github/copilot-instructions.md
+.github/instructions/domain4-output-risk.instructions.md
+.github/skills/qsaf-control-workflow/
+.github/prompts/new-control.prompt.md

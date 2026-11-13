@@ -18,11 +18,12 @@ from domains.domain1_prompt_injection.controls import ALL_CONTROLS as D1_CONTROL
 from domains.domain2_role_context.controls import ALL_CONTROLS as D2_CONTROLS
 from domains.domain3_plugin_abuse.controls import ALL_CONTROLS as D3_CONTROLS
 from domains.domain4_output_risk.controls import ALL_CONTROLS as D4_CONTROLS
+from domains.domain7_source_attribution_rag.controls import ALL_CONTROLS as D7_CONTROLS
 
 
 def build_orchestrator() -> Orchestrator:
     orch = Orchestrator()
-    for control in D1_CONTROLS + D2_CONTROLS + D3_CONTROLS + D4_CONTROLS:
+    for control in D1_CONTROLS + D2_CONTROLS + D3_CONTROLS + D4_CONTROLS + D7_CONTROLS:
         orch.register(control)
     return orch
 
@@ -39,17 +40,17 @@ def test_pipeline_runs_without_crashing():
     assert results["ingress"].final_status in ("pass", "warn", "block", "escalate")
 
 
-def test_all_four_domains_are_registered():
+def test_all_five_domains_are_registered():
     orch = build_orchestrator()
     domains_seen = {c.domain for c in orch._controls}
-    assert len(domains_seen) == 4, f"Expected 4 domains registered, got: {domains_seen}"
+    assert len(domains_seen) == 5, f"Expected 5 domains registered, got: {domains_seen}"
 
 
 def test_layers_are_assigned_correctly():
     orch = build_orchestrator()
     assert len(orch.controls_for_layer("ingress")) == 15   # Domain 1 (8) + Domain 2 (7)
     assert len(orch.controls_for_layer("execution")) == 7   # Domain 3
-    assert len(orch.controls_for_layer("egress")) == 7      # Domain 4
+    assert len(orch.controls_for_layer("egress")) == 14      # Domain 4 (7) + Domain 7 (7)
 
 
 def test_known_malicious_prompt_flow():
@@ -66,3 +67,15 @@ def test_known_malicious_prompt_flow():
     )
     results = orch.run_full_pipeline(ctx)
     assert results["ingress"].final_status in ("pass", "warn", "block", "escalate")
+
+def test_orchestrator_provides_prior_verdicts_to_controls():
+    orch = build_orchestrator()
+    ctx = RequestContext(
+        session_id="integration-prior",
+        user_id="tester",
+        raw_prompt="Hello, can you help me plan a trip to Karachi?",
+    )
+    orch.run_layer("ingress", ctx)
+    prior = ctx.metadata.get("prior_verdicts")
+    assert isinstance(prior, list)
+    assert all(hasattr(v, "control_id") and hasattr(v, "status") for v in prior)

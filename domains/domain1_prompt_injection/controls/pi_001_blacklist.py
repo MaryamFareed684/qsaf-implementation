@@ -13,7 +13,7 @@ class BlacklistPI001(Control):
         blacklist_config = policy.get("blacklist", {})
         phrases = blacklist_config.get("phrases", [])
 
-        prompt_to_check = ctx.metadata.get("cleaned_prompt", ctx.raw_prompt).lower()
+        prompt_to_check = " ".join(ctx.metadata.get("cleaned_prompt", ctx.raw_prompt).lower().split())
 
         matched_phrases = [p for p in phrases if p.lower() in prompt_to_check]
 

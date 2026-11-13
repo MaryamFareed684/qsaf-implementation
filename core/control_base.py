@@ -35,6 +35,9 @@ class Control(ABC):
     control_id: str = "UNSET"
     domain: str = "UNSET"
     layer: str = "ingress"
+    # Monitoring controls (for example SA-007) set always_run = True so that they still run, and still see
+    # the earlier verdicts, after another control of the same layer blocked. All other controls are skipped.
+    always_run: bool = False
 
     def __init__(self):
         if self.layer not in VALID_LAYERS:

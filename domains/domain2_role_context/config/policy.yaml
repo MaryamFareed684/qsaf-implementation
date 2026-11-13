@@ -64,8 +64,3 @@ context_integrity:
     - "[system]"
     - "assistant:"
     - "[assistant]"
-
-semantic_drift:
-  enabled: true
-  drift_threshold: 0.3
-  min_words: 5

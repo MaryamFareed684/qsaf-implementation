@@ -2,7 +2,7 @@
 core/orchestrator.py
 
 The central "traffic controller." It does NOT know anything about any
-specific domain's internal logic — it only knows the Control interface.
+specific domain's internal logic - it only knows the Control interface.
 This is what makes domains "plug in" without special-case code.
 
 Usage:
@@ -34,17 +34,26 @@ class Orchestrator:
         Runs every registered control belonging to `layer`, in registration
         order, against the given context. Logs every verdict, then returns
         one aggregated PipelineResult for that layer.
+
+        Contract for controls that need earlier verdicts (RC-006, SA-003, SA-007):
+        before each control runs, ctx.metadata["prior_verdicts"] is set to a fresh
+        list holding the verdicts of the controls that already ran in THIS layer.
+
+        Short-circuit: once a control returns "block", the remaining controls of the
+        layer are skipped (saves time/cost), EXCEPT controls that declare
+        always_run = True (monitoring controls that must still see the request).
         """
         verdicts: list[Verdict] = []
+        blocked = False
         for control in self.controls_for_layer(layer):
+            if blocked and not getattr(control, "always_run", False):
+                continue
+            ctx.metadata["prior_verdicts"] = list(verdicts)
             verdict = control.safe_evaluate(ctx)
             log_verdict(ctx.session_id, verdict)
             verdicts.append(verdict)
-
-            # Short-circuit: if something already says "block", we can stop
-            # running further controls in this layer (saves time/cost).
             if verdict.status == "block":
-                break
+                blocked = True
 
         result = aggregate(ctx.session_id, verdicts)
         log_pipeline_result(result)
@@ -56,7 +65,7 @@ class Orchestrator:
         Returns a dict of layer_name -> PipelineResult so callers (like the
         demo agent) can decide what to do at each stage.
 
-        NOTE: this does not call the actual LLM/agent itself — that's the
+        NOTE: this does not call the actual LLM/agent itself - that's the
         demo app's job. This just shows the intended layer ordering.
         """
         results = {}
