@@ -21,7 +21,7 @@ def calculate_entropy(text: str) -> float:
     return entropy
 
 
-def detect_repetition(text: str) -> tuple[bool, str, float]:
+def detect_repetition(text: str, min_count: int = 1) -> tuple[bool, str, float]:
     """Checks if any single word makes up an unusually large fraction of the prompt."""
     words = text.lower().split()
     if not words:
@@ -31,7 +31,7 @@ def detect_repetition(text: str) -> tuple[bool, str, float]:
     most_common_word, count = word_counts.most_common(1)[0]
     fraction = count / len(words)
 
-    return fraction > 0.3, most_common_word, fraction  # 30% threshold
+    return (fraction > 0.3 and count >= min_count), most_common_word, fraction  # share above 30% AND repeated at least min_count times
 
 
 class TokenAnomalyPI007(Control):
@@ -44,6 +44,7 @@ class TokenAnomalyPI007(Control):
         config = policy.get("token_anomaly", {})
         max_length = config.get("max_length", 2000)
         entropy_threshold = config.get("entropy_threshold", 4.5)
+        min_repeat_count = config.get("min_repeat_count", 5)
 
         prompt_to_check = ctx.metadata.get("cleaned_prompt", ctx.raw_prompt)
 
@@ -54,7 +55,7 @@ class TokenAnomalyPI007(Control):
             issues.append(f"Prompt length ({len(prompt_to_check)}) exceeds max ({max_length}).")
 
         # Check 2: repetition
-        is_repetitive, repeated_word, fraction = detect_repetition(prompt_to_check)
+        is_repetitive, repeated_word, fraction = detect_repetition(prompt_to_check, min_repeat_count)
         if is_repetitive:
             issues.append(f"Word '{repeated_word}' makes up {fraction:.0%} of the prompt.")
 
