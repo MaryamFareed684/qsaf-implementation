@@ -31,7 +31,16 @@ class EmbeddingSimilarityPI003(Control):
 
     def evaluate(self, ctx: RequestContext) -> Verdict:
         policy = load_domain_policy("domain1_prompt_injection")
-        threshold = policy.get("embedding_similarity", {}).get("threshold", 0.85)
+        threshold = policy.get("embedding_similarity", {}).get("threshold")
+        if isinstance(threshold, bool) or not isinstance(threshold, (int, float)):
+            return Verdict(
+                control_id=self.control_id,
+                domain=self.domain,
+                status="warn",
+                risk_score=0.5,
+                reason="Policy setting missing: embedding_similarity.threshold is absent or not a number.",
+                evidence={"missing_policy_key": "embedding_similarity.threshold"},
+            )
 
         prompt_to_check = get_cleaned_prompt(ctx)
         prompt_embedding = self.model.encode(prompt_to_check)

@@ -13,6 +13,15 @@ class BlacklistPI001(Control):
         policy = load_domain_policy("domain1_prompt_injection")
         blacklist_config = policy.get("blacklist", {})
         phrases = blacklist_config.get("phrases", [])
+        if not phrases:
+            return Verdict(
+                control_id=self.control_id,
+                domain=self.domain,
+                status="warn",
+                risk_score=0.5,
+                reason="Policy setting missing: blacklist.phrases is empty or absent, so the blacklist cannot be checked.",
+                evidence={"missing_policy_key": "blacklist.phrases"},
+            )
 
         prompt_to_check = " ".join(get_cleaned_prompt(ctx).lower().split())
 
