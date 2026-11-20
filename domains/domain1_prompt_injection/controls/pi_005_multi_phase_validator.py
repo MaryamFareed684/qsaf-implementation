@@ -11,8 +11,8 @@ class MultiPhaseValidatorPI005(Control):
     STATUS_SEVERITY = {
         "pass": 0,
         "warn": 1,
-        "block": 2,
-        "escalate": 3,
+        "escalate": 2,
+        "block": 3,
     }
 
     def evaluate(self, ctx: RequestContext) -> Verdict:
