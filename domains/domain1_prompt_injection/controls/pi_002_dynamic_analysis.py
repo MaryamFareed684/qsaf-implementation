@@ -1,6 +1,7 @@
 from core.control_base import Control
 from core.models import RequestContext, Verdict
 from core.policy_loader import load_domain_policy
+from domains.domain1_prompt_injection.common import get_cleaned_prompt
 from groq import Groq
 import json
 import os
@@ -38,7 +39,7 @@ class DynamicAnalysisPI002(Control):
         config = policy.get("dynamic_analysis", {})
         threshold = config.get("threshold", 0.5)
 
-        prompt_to_check = ctx.metadata.get("cleaned_prompt", ctx.raw_prompt)
+        prompt_to_check = get_cleaned_prompt(ctx)
 
         user_message = f"<<<USER_PROMPT>>>\n{prompt_to_check}\n<<<END_USER_PROMPT>>>"
 

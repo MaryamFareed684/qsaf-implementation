@@ -1,6 +1,7 @@
 from core.control_base import Control
 from core.models import RequestContext, Verdict
 from core.policy_loader import load_domain_policy
+from domains.domain1_prompt_injection.common import get_cleaned_prompt
 from sentence_transformers import SentenceTransformer
 import numpy as np
 
@@ -32,7 +33,7 @@ class EmbeddingSimilarityPI003(Control):
         policy = load_domain_policy("domain1_prompt_injection")
         threshold = policy.get("embedding_similarity", {}).get("threshold", 0.85)
 
-        prompt_to_check = ctx.metadata.get("cleaned_prompt", ctx.raw_prompt)
+        prompt_to_check = get_cleaned_prompt(ctx)
         prompt_embedding = self.model.encode(prompt_to_check)
 
         best_score = 0.0

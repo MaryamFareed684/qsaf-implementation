@@ -1,6 +1,7 @@
 from core.control_base import Control
 from core.models import RequestContext, Verdict
 from core.policy_loader import load_domain_policy
+from domains.domain1_prompt_injection.common import get_cleaned_prompt
 
 
 class BlacklistPI001(Control):
@@ -13,7 +14,7 @@ class BlacklistPI001(Control):
         blacklist_config = policy.get("blacklist", {})
         phrases = blacklist_config.get("phrases", [])
 
-        prompt_to_check = " ".join(ctx.metadata.get("cleaned_prompt", ctx.raw_prompt).lower().split())
+        prompt_to_check = " ".join(get_cleaned_prompt(ctx).lower().split())
 
         matched_phrases = [p for p in phrases if p.lower() in prompt_to_check]
 
