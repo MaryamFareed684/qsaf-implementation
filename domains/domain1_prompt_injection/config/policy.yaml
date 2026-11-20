@@ -38,6 +38,7 @@ token_anomaly:
   enabled: true
   max_length: 2000
   entropy_threshold: 4.5
+  min_repeat_count: 5  # a word must repeat at least this often (and exceed 30% of the prompt) to count as repetition
 
 token_sanitizer:
   enabled: true
