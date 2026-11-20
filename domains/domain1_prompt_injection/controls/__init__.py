@@ -16,12 +16,12 @@ from domains.domain1_prompt_injection.controls.pi_007_token_anomaly import Token
 from domains.domain1_prompt_injection.controls.pi_008_token_sanitizer import TokenSanitizerPI008
 
 ALL_CONTROLS = [
-    BlacklistPI001(),
-    DynamicAnalysisPI002(),
-    EmbeddingSimilarityPI003(),
-    RiskScoringPI004(),
-    MultiPhaseValidatorPI005(),
-    EscalationRouterPI006(),
-    TokenAnomalyPI007(),
     TokenSanitizerPI008(),
+    BlacklistPI001(),
+    TokenAnomalyPI007(),
+    MultiPhaseValidatorPI005(),
+    EmbeddingSimilarityPI003(),
+    DynamicAnalysisPI002(),
+    RiskScoringPI004(),
+    EscalationRouterPI006(),
 ]
