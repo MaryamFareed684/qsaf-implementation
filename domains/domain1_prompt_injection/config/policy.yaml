@@ -16,6 +16,7 @@ blacklist:
 
 dynamic_analysis:
   enabled: true
+  max_attempts: 2  # how many times to ask the judge when its answer is not usable (1 = no retry)
   threshold: 0.5  # TODO: tune this
 
 embedding_similarity:
