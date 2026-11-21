@@ -6,7 +6,21 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 
 
+def _is_number(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
 class EmbeddingSimilarityPI003(Control):
+    """PI-003: similarity to known attack sentences.
+
+    Three outcomes, set by two lines in policy.yaml (embedding_similarity):
+      similarity <= threshold        -> pass
+      threshold < similarity <= block_threshold -> warn  (uncertain zone)
+      similarity > block_threshold   -> block
+    Limit: the score measures topic closeness to attack sentences, not attack intent, so a harmless
+    question about AI can score high. That is why the middle band warns instead of blocking.
+    """
+
     control_id = "PI-003"
     domain = "Domain 1: Prompt Injection Protection"
     layer = "ingress"
@@ -29,17 +43,39 @@ class EmbeddingSimilarityPI003(Control):
     def _cosine_similarity(self, a, b):
         return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
+    def _config_warning(self, reason: str, evidence: dict) -> Verdict:
+        return Verdict(
+            control_id=self.control_id,
+            domain=self.domain,
+            status="warn",
+            risk_score=0.5,
+            reason=reason,
+            evidence=evidence,
+        )
+
     def evaluate(self, ctx: RequestContext) -> Verdict:
         policy = load_domain_policy("domain1_prompt_injection")
-        threshold = policy.get("embedding_similarity", {}).get("threshold")
-        if isinstance(threshold, bool) or not isinstance(threshold, (int, float)):
-            return Verdict(
-                control_id=self.control_id,
-                domain=self.domain,
-                status="warn",
-                risk_score=0.5,
-                reason="Policy setting missing: embedding_similarity.threshold is absent or not a number.",
-                evidence={"missing_policy_key": "embedding_similarity.threshold"},
+        config = policy.get("embedding_similarity") or {}
+        warn_threshold = config.get("threshold")
+        block_threshold = config.get("block_threshold")
+
+        missing = [
+            key
+            for key, value in (
+                ("embedding_similarity.threshold", warn_threshold),
+                ("embedding_similarity.block_threshold", block_threshold),
+            )
+            if not _is_number(value)
+        ]
+        if missing:
+            return self._config_warning(
+                f"Policy setting missing: {', '.join(missing)} absent or not a number.",
+                {"missing_policy_key": missing[0], "missing_policy_keys": missing},
+            )
+        if warn_threshold > block_threshold:
+            return self._config_warning(
+                "Policy setting invalid: embedding_similarity.threshold (warn line) is above block_threshold.",
+                {"threshold": warn_threshold, "block_threshold": block_threshold},
             )
 
         prompt_to_check = get_cleaned_prompt(ctx)
@@ -53,13 +89,26 @@ class EmbeddingSimilarityPI003(Control):
                 best_score = score
                 best_match = ref_prompt
 
-        if best_score > threshold:
+        if best_score > block_threshold:
             return Verdict(
                 control_id=self.control_id,
                 domain=self.domain,
                 status="block",
                 risk_score=float(best_score),
-                reason=f"Prompt semantically similar to known attack pattern (score={best_score:.2f}).",
+                reason=f"Prompt semantically very similar to a known attack pattern (score={best_score:.2f}).",
+                evidence={"matched_reference": best_match, "similarity_score": float(best_score)},
+            )
+
+        if best_score > warn_threshold:
+            return Verdict(
+                control_id=self.control_id,
+                domain=self.domain,
+                status="warn",
+                risk_score=float(best_score),
+                reason=(
+                    f"Prompt is somewhat similar to a known attack pattern (score={best_score:.2f}); "
+                    "similarity alone cannot tell an attack from a harmless question on the same topic."
+                ),
                 evidence={"matched_reference": best_match, "similarity_score": float(best_score)},
             )
 

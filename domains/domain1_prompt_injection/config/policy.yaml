@@ -20,7 +20,8 @@ dynamic_analysis:
 
 embedding_similarity:
   enabled: true
-  threshold: 0.55  # cosine similarity cutoff — tune based on testing
+  threshold: 0.55        # WARN line: a similarity above this gives a warn
+  block_threshold: 0.70  # BLOCK line: a similarity above this blocks (must not be below threshold)
   
 risk_scoring:
   enabled: true

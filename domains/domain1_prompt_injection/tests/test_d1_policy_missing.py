@@ -66,5 +66,5 @@ def test_pi003_still_blocks_with_the_real_policy(pi003, text):
 
 
 def test_pi003_uses_a_threshold_given_by_the_policy(monkeypatch, pi003):
-    monkeypatch.setattr(m3, "load_domain_policy", lambda name: {"embedding_similarity": {"threshold": 0.55}})
+    monkeypatch.setattr(m3, "load_domain_policy", lambda name: {"embedding_similarity": {"threshold": 0.55, "block_threshold": 0.70}})
     assert pi003.evaluate(_ctx(STRONG_PARAPHRASE)).status == "block"
