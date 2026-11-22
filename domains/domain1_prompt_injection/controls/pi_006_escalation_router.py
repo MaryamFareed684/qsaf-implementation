@@ -18,6 +18,11 @@ class EscalationRouterPI006(Control):
 
     def evaluate(self, ctx: RequestContext) -> Verdict:
         final_verdict = ctx.metadata.get("final_verdict")
+        if final_verdict is None:
+            # Through the shared orchestrator nobody sets "final_verdict": use the aggregator's (PI-004) verdict.
+            for earlier in ctx.metadata.get("prior_verdicts", []):
+                if earlier.control_id == "PI-004":
+                    final_verdict = earlier
 
         if final_verdict is None or final_verdict.status != "escalate":
             return Verdict(
