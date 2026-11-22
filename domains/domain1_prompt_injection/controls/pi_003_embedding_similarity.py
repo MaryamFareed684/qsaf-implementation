@@ -116,8 +116,8 @@ class EmbeddingSimilarityPI003(Control):
             control_id=self.control_id,
             domain=self.domain,
             status="pass",
-            risk_score=float(best_score),
-            reason="No significant semantic similarity to known attacks.",
+            risk_score=0.0,
+            reason=f"No significant semantic similarity to known attacks (closest similarity {best_score:.2f}).",
             evidence={"closest_match": best_match, "similarity_score": float(best_score)},
         )
 

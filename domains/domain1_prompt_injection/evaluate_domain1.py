@@ -39,16 +39,16 @@ def main():
         flagged = any(x.status != "pass" for x in v.values())
         if (label == "attack" and not flagged) or (label == "benign" and flagged):
             who = ",".join(k for k, x in v.items() if x.status != "pass") or "none"
-            print("  %-6s %-13s flagged_by=%-12s pi003=%.3f  %s" % (label, kind, who, v["PI-003"].risk_score, text[:60]))
+            print("  %-6s %-13s flagged_by=%-12s pi003=%.3f  %s" % (label, kind, who, v["PI-003"].evidence["similarity_score"], text[:60]))
     print("\nPI-003 alone, threshold sweep (flag when score > t):")
     for i in range(6, 19):
         t = i * 0.05
-        tp, na, fp, nb = rate(rows, lambda r, t=t: r[3]["PI-003"].risk_score > t)
+        tp, na, fp, nb = rate(rows, lambda r, t=t: r[3]["PI-003"].evidence["similarity_score"] > t)
         print("  t=%.2f  attacks caught %2d/%d   benign flagged %2d/%d" % (t, tp, na, fp, nb))
     print("\nPI-003 score by kind (min / max):")
     kinds = {}
     for label, kind, text, v in rows:
-        kinds.setdefault((label, kind), []).append(v["PI-003"].risk_score)
+        kinds.setdefault((label, kind), []).append(v["PI-003"].evidence["similarity_score"])
     for (label, kind), s in sorted(kinds.items()):
         print("  %-6s %-13s %.3f / %.3f" % (label, kind, min(s), max(s)))
 
