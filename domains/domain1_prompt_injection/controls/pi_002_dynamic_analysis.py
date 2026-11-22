@@ -78,6 +78,7 @@ class DynamicAnalysisPI002(Control):
         policy = load_domain_policy("domain1_prompt_injection")
         config = policy.get("dynamic_analysis", {})
         threshold = config.get("threshold", 0.5)
+        block_threshold = config.get("block_threshold", 0.8)
         max_attempts = config.get("max_attempts", 2)
         if isinstance(max_attempts, bool) or not isinstance(max_attempts, int) or max_attempts < 1:
             max_attempts = 2
@@ -121,7 +122,7 @@ class DynamicAnalysisPI002(Control):
             risk_score = float(score)
             explanation = str(result.get("explanation", "No explanation provided."))[:300]
             if risk_score > threshold:
-                status = "block" if risk_score > 0.8 else "warn"
+                status = "block" if risk_score > block_threshold else "warn"
             else:
                 status = "pass"
             return Verdict(
