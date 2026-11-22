@@ -26,6 +26,7 @@ embedding_similarity:
   
 risk_scoring:
   enabled: true
+  escalate_on_analyzer_failure: [refused, not_json, invalid_score]  # PI-002 failure kinds that need a human (empty list = never escalate)
   threshold: 0.5  # TODO: tune this
 
 multi_phase_validator:
