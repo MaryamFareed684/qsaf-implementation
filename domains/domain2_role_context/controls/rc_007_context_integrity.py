@@ -1,7 +1,7 @@
 from core.control_base import Control
 from core.models import RequestContext, Verdict
 from core.policy_loader import load_domain_policy
-from domains.domain2_role_context.common import clean_text, message_role, message_text
+from domains.domain2_role_context.common import clean_text, message_role, message_text, messages_to_check
 
 
 class ContextIntegrityRC007(Control):
@@ -19,7 +19,7 @@ class ContextIntegrityRC007(Control):
             "[assistant]",
         ])
 
-        history = ctx.conversation_history
+        history = messages_to_check(ctx)
 
         if not history:
             return Verdict(

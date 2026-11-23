@@ -67,3 +67,19 @@ def message_text(message) -> str:
                 parts.append(part["text"])
         return " ".join(parts)
     return ""
+
+
+def messages_to_check(ctx: RequestContext) -> list:
+    """The history plus the current prompt, without counting the current prompt twice.
+
+    Domain 2's tests and demo build the history so that it ends with the current user message; other
+    callers pass only the earlier messages. Either way the current prompt is scanned exactly once: if the
+    last history message already has the same cleaned text, the history is returned as it is, otherwise the
+    current prompt is added as one extra user message. Never mutates ctx."""
+    history = list(ctx.conversation_history or [])
+    current = clean_text(ctx.raw_prompt)
+    if history:
+        last = history[-1]
+        if message_role(last) in ("user", "") and clean_text(message_text(last)) == current:
+            return history
+    return history + [{"role": "user", "content": ctx.raw_prompt}]
