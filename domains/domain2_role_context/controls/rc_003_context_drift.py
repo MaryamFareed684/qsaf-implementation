@@ -1,7 +1,7 @@
 from core.control_base import Control
 from core.models import RequestContext, Verdict
 from core.policy_loader import load_domain_policy
-from domains.domain2_role_context.common import clean_text, message_text
+from domains.domain2_role_context.common import clean_text, message_text, messages_to_check
 
 
 class ContextDriftRC003(Control):
@@ -20,7 +20,7 @@ class ContextDriftRC003(Control):
             "updated role:",
         ])
 
-        history = ctx.conversation_history  # list of dicts, e.g. [{"role": "user", "content": "..."}, ...]
+        history = messages_to_check(ctx)  # list of dicts, e.g. [{"role": "user", "content": "..."}, ...]
 
         if not history or len(history) < 2:
             return Verdict(
