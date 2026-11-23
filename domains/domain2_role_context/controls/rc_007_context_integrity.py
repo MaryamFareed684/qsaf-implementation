@@ -1,7 +1,7 @@
 from core.control_base import Control
 from core.models import RequestContext, Verdict
 from core.policy_loader import load_domain_policy
-from domains.domain2_role_context.common import message_role, message_text
+from domains.domain2_role_context.common import clean_text, message_role, message_text
 
 
 class ContextIntegrityRC007(Control):
@@ -34,7 +34,7 @@ class ContextIntegrityRC007(Control):
         issues = []
         for i, msg in enumerate(history):
             role = message_role(msg)
-            content = message_text(msg).lower()
+            content = clean_text(message_text(msg)).lower()
 
             # Check 1: system-role message appearing mid-conversation
             if role == "system" and i > 0:

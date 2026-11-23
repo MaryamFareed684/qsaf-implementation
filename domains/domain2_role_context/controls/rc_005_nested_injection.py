@@ -1,6 +1,7 @@
 from core.control_base import Control
 from core.models import RequestContext, Verdict
 from core.policy_loader import load_domain_policy
+from domains.domain2_role_context.common import get_cleaned_prompt
 import re
 
 
@@ -14,7 +15,7 @@ class NestedInjectionRC005(Control):
         config = policy.get("nested_injection", {})
         role_tokens = config.get("role_tokens", ["system:", "assistant:", "user:", "[system]", "[assistant]"])
 
-        prompt_to_check = ctx.metadata.get("cleaned_prompt", ctx.raw_prompt)
+        prompt_to_check = get_cleaned_prompt(ctx)
 
         # Look for nesting markers: code fences, triple quotes, XML-like tags
         nesting_patterns = [

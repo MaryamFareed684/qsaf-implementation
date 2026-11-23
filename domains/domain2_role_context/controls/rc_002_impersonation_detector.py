@@ -1,6 +1,7 @@
 from core.control_base import Control
 from core.models import RequestContext, Verdict
 from core.policy_loader import load_domain_policy
+from domains.domain2_role_context.common import get_cleaned_prompt
 
 
 class ImpersonationDetectorRC002(Control):
@@ -21,7 +22,7 @@ class ImpersonationDetectorRC002(Control):
             "official override code",
         ])
 
-        prompt_to_check = ctx.metadata.get("cleaned_prompt", ctx.raw_prompt).lower()
+        prompt_to_check = get_cleaned_prompt(ctx).lower()
         matched = [p for p in phrases if p in prompt_to_check]
 
         if matched:
