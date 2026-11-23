@@ -1,6 +1,7 @@
 from core.control_base import Control
 from core.models import RequestContext, Verdict
 from core.policy_loader import load_domain_policy
+from domains.domain2_role_context.common import message_text
 
 
 class ContextDriftRC003(Control):
@@ -33,7 +34,7 @@ class ContextDriftRC003(Control):
 
         flagged_messages = []
         for i, msg in enumerate(history):
-            content = msg.get("content", "").lower()
+            content = message_text(msg).lower()
             for phrase in drift_phrases:
                 if phrase in content:
                     flagged_messages.append({"index": i, "phrase": phrase})
