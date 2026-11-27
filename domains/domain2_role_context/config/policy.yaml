@@ -43,6 +43,7 @@ session_pivot:
     - "end session, begin new session"
 
 nested_injection:
+  max_scan_chars: 10000  # input longer than this is scanned only up to this many characters (and gives a warn)
   role_tokens:
     - "system:"
     - "assistant:"

@@ -16,6 +16,13 @@ class NestedInjectionRC005(Control):
         role_tokens = config.get("role_tokens", ["system:", "assistant:", "user:", "[system]", "[assistant]"])
 
         prompt_to_check = get_cleaned_prompt(ctx)
+        max_scan_chars = config.get("max_scan_chars", 10000)
+        if isinstance(max_scan_chars, bool) or not isinstance(max_scan_chars, int) or max_scan_chars < 1:
+            max_scan_chars = 10000
+        total_length = len(prompt_to_check)
+        truncated = total_length > max_scan_chars
+        if truncated:
+            prompt_to_check = prompt_to_check[:max_scan_chars]
 
         # Look for nesting markers: code fences, triple quotes, XML-like tags
         nesting_patterns = [
@@ -34,13 +41,27 @@ class NestedInjectionRC005(Control):
                         found_nested_roles.append({"block": block[:80], "token": token})
 
         if found_nested_roles:
+            evidence = {"found": found_nested_roles}
+            if truncated:
+                evidence.update({"truncated": True, "scanned_chars": max_scan_chars, "length": total_length})
             return Verdict(
                 control_id=self.control_id,
                 domain=self.domain,
                 status="warn",
                 risk_score=0.65,
                 reason=f"Found {len(found_nested_roles)} role-token(s) nested inside a quoted/fenced block.",
-                evidence={"found": found_nested_roles},
+                evidence=evidence,
+            )
+
+        if truncated:
+            return Verdict(
+                control_id=self.control_id,
+                domain=self.domain,
+                status="warn",
+                risk_score=0.5,
+                reason=(f"Input is {total_length} characters long; only the first {max_scan_chars} were scanned "
+                        "for nested role-tokens."),
+                evidence={"truncated": True, "scanned_chars": max_scan_chars, "length": total_length},
             )
 
         return Verdict(
@@ -51,7 +72,6 @@ class NestedInjectionRC005(Control):
             reason="No nested role-tokens found inside quoted or fenced content.",
             evidence={},
         )
-
 
 if __name__ == "__main__":
     ctx1 = RequestContext(
