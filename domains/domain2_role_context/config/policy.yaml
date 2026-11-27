@@ -1,9 +1,10 @@
 # domains/domain2_role_context/config/policy.yaml
-# Thresholds and settings for Domain 2: Role & Context Manipulation
-# Each control reads ITS OWN section below via core.policy_loader
+# Phrase and token lists for Domain 2: Role & Context Manipulation.
+# Each control reads ITS OWN section below via core.policy_loader.
+# Every key here is read by the code (a test checks this). RC-006 (role assertion log) needs no settings.
+# Domains are switched on or off in config/global_policy.yaml, not here.
 
 role_lock:
-  enabled: true
   phrases:
     - "you are now"
     - "act as if you are"
@@ -14,7 +15,6 @@ role_lock:
     - "you are no longer"
 
 impersonation:
-  enabled: true
   phrases:
     - "i am the developer"
     - "i am your creator"
@@ -25,7 +25,6 @@ impersonation:
     - "official override code"
 
 context_drift:
-  enabled: true
   phrases:
     - "let's play a game where"
     - "for this conversation, you are"
@@ -34,7 +33,6 @@ context_drift:
     - "updated role:"
 
 session_pivot:
-  enabled: true
   phrases:
     - "[new session]"
     - "new conversation start"
@@ -45,7 +43,6 @@ session_pivot:
     - "end session, begin new session"
 
 nested_injection:
-  enabled: true
   role_tokens:
     - "system:"
     - "assistant:"
@@ -53,12 +50,7 @@ nested_injection:
     - "[system]"
     - "[assistant]"
 
-role_assertion_log:
-  enabled: true
-  threshold: 0.5  # TODO: tune this
-
 context_integrity:
-  enabled: true
   role_tokens:
     - "system:"
     - "[system]"
